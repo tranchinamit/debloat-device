@@ -16,13 +16,29 @@
 | Mô tả từng app | ❌ Không có | ✅ Có sẵn (crowdsourced) |
 | Restore | Lệnh dài | ✅ 1 click |
 | Backup trước khi xóa | ❌ Tự làm | ✅ Tự động |
-| Không cần ADB cài sẵn | ❌ Bắt buộc | ✅ Bundled |
+| Không cần nhớ lệnh Terminal | ❌ Phải gõ từng lệnh | ✅ Thao tác bằng chuột |
+| Yêu cầu ADB (Platform-Tools) | ✅ Cần `adb` | ✅ Cần `adb` (chỉ cần Platform-Tools nhẹ ~10MB) |
 
 ---
 
-## Bước 0 — Cài UAD-ng trên Mac
+## Bước 0 — Chuẩn bị công cụ trên máy tính
 
-### Download binary (không cần build)
+### 1. Cài ADB (Android Platform-Tools)
+> ⚠️ **Lưu ý:** Không cần cài cả bộ Android SDK nặng vài GB (Android Studio). Bạn chỉ cần cài gói **Platform-Tools** siêu nhẹ (~10MB) chứa lệnh `adb`.
+
+**Trên macOS (qua Homebrew):**
+```bash
+brew install android-platform-tools
+```
+*(Hoặc tải thủ công bản ZIP từ [Google Platform Tools](https://developer.android.com/tools/releases/platform-tools) rồi thêm vào PATH).*
+
+**Kiểm tra xem máy đã có ADB chưa:**
+```bash
+adb version
+```
+
+### 2. Tải và cài UAD-ng
+UAD-ng là ứng dụng giao diện (GUI) viết bằng Rust, dùng `adb` ở trên để thao tác với điện thoại.
 
 1. Vào [Releases page](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation/releases/latest)
 2. Download file phù hợp:
@@ -35,21 +51,13 @@
 cd ~/Downloads
 tar -xzf uad_ng-macos-*.tar.gz
 
-# Chạy (lần đầu macOS có thể chặn)
+# Cấp quyền thực thi và chạy (lần đầu macOS có thể chặn)
+chmod +x uad_ng
 ./uad_ng
 ```
 
 > Nếu macOS báo "cannot be opened because the developer cannot be verified":  
-> **System Settings → Privacy & Security → Allow Anyway**
-
-### Hoặc cài qua Homebrew (nếu có trong cask)
-
-```bash
-# Kiểm tra
-brew search uad
-# Nếu có thì:
-brew install --cask uad-ng
-```
+> **System Settings → Privacy & Security → Allow Anyway** (hoặc chuột phải vào app chọn **Open**).
 
 ---
 
@@ -74,8 +82,7 @@ brew install --cask uad-ng
 ### Qua USB (đơn giản nhất)
 
 ```bash
-# Kiểm tra ADB thấy máy (UAD-ng dùng ADB riêng của nó)
-# Nhưng bạn có thể dùng lệnh này để verify trước:
+# Kiểm tra máy tính đã nhận diện được thiết bị qua ADB:
 adb devices
 ```
 

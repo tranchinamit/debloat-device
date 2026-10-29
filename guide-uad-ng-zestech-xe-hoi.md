@@ -16,8 +16,20 @@
 
 ---
 
-## Bước 0 — Cài UAD-ng trên Mac
+## Bước 0 — Chuẩn bị công cụ trên Mac
 
+### 1. Cài ADB (Android Platform-Tools)
+UAD-ng cần lệnh `adb` để giao tiếp với màn hình xe. Bạn không cần cài toàn bộ Android SDK, chỉ cần cài gói **Platform-Tools** siêu nhẹ:
+
+```bash
+# Cài qua Homebrew
+brew install android-platform-tools
+
+# Kiểm tra
+adb version
+```
+
+### 2. Tải và chạy UAD-ng
 1. Vào [Releases page](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation/releases/latest)
 2. Download:
    - **Apple Silicon (M1/M2/M3):** `uad_ng-macos-apple-silicon.tar.gz`
@@ -27,6 +39,7 @@
 ```bash
 cd ~/Downloads
 tar -xzf uad_ng-macos-*.tar.gz
+chmod +x uad_ng
 ./uad_ng
 ```
 
