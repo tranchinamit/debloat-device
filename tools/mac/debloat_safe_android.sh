@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# ANDROID SAFE DEBLOAT & OPTIMIZER FOR MACOS (Remote & Local)
-# Tự động tải platform-tools (adb) nếu máy Mac của em họ chưa cài,
+# ANDROID SAFE DEBLOAT & OPTIMIZER FOR MACOS
+# Tự động tải platform-tools (adb) nếu máy Mac của bạn chưa cài,
 # tự động backup danh sách package ra Desktop + Clipboard (pbcopy),
-# gỡ bloatware an toàn (Xiaomi, Samsung, OPPO/Realme, Facebook, Microsoft, Google)
+# gỡ bloatware an toàn (Xiaomi, Samsung, OPPO/Realme, Google Pixel, Facebook, Microsoft)
 # và tối ưu độ mượt hệ thống.
 # ==============================================================================
 
@@ -13,7 +13,7 @@ echo "=========================================================="
 echo "   ANDROID SAFE DEBLOAT & OPTIMIZER (MACOS BASH)          "
 echo "=========================================================="
 
-# ---------- 1. Chuẩn bị ADB (Tự tải nếu máy Mac khách chưa có) ----------
+# ---------- 1. Chuẩn bị ADB (Tự tải nếu máy Mac của bạn chưa có) ----------
 if ! command -v adb >/dev/null 2>&1; then
     WORK_DIR="/tmp/adb_work"
     if [ ! -x "$WORK_DIR/platform-tools/adb" ]; then
@@ -38,8 +38,10 @@ fi
 
 # ---------- 2. Thu thập thông tin & Backup danh sách Package gốc ----------
 BRAND=$(adb shell getprop ro.product.brand | tr -d '\r')
+BRAND_LOWER=$(echo "$BRAND" | tr '[:upper:]' '[:lower:]')
 MODEL=$(adb shell getprop ro.product.model | tr -d '\r' | tr ' ' '_')
 ANDROID_VER=$(adb shell getprop ro.build.version.release | tr -d '\r')
+MEM_TOTAL_KB=$(adb shell "awk '/MemTotal/ {print \$2}' /proc/meminfo" 2>/dev/null | tr -d '\r' || echo "0")
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="$HOME/Desktop/${BRAND}_${MODEL}_packages_before_${TIMESTAMP}.txt"
 
@@ -49,7 +51,7 @@ PKG_COUNT=$(wc -l < "$BACKUP_FILE" | tr -d ' ')
 echo "[+] Thiết bị : $BRAND $MODEL (Android $ANDROID_VER)"
 echo "[+] Đã lưu Backup ($PKG_COUNT gói) tại: $BACKUP_FILE"
 
-# Copy thông tin vào Clipboard trên Mac để tiện Paste về Antigravity
+# Copy thông tin vào Clipboard trên Mac để bạn tiện kiểm tra hoặc lưu trữ
 {
     echo "=== DEVICE INFO ==="
     echo "Brand: $BRAND | Model: $MODEL | Android: $ANDROID_VER"
@@ -89,6 +91,8 @@ SAFE_PACKAGES=(
     "com.miui.vsimcore|Virtual SIM Core"
 
     # 2. Samsung One UI
+    "com.aura.oobe.samsung.gl|AppCloud / IronSource (Bloatware tự tải app quảng cáo ngầm)"
+    "com.samsung.android.game.gos|Game Optimizing Service (GOS - bóp hiệu năng & chạy ngầm)"
     "com.samsung.android.bixby.agent|Trợ lý ảo Bixby Voice"
     "com.samsung.android.bixby.wakeup|Nhận diện giọng nói đánh thức Bixby"
     "com.samsung.android.visionintelligence|Bixby Vision"
@@ -129,8 +133,8 @@ SAFE_PACKAGES=(
     "com.android.traceur|System Tracing dev log"
     "com.android.egg|Android Easter Egg"
     "com.android.providers.partnerbookmarks|Bookmarks đối tác mặc định"
-    "com.google.android.as|Android System Intelligence (ngốn ~103MB RAM ngầm)"
-    "com.google.android.as.oss|Private Compute Services"
+    "com.google.android.as|Android System Intelligence (Gỡ trên máy RAM thấp; tự động GIỮ trên Google Pixel)"
+    "com.google.android.as.oss|Private Compute Services (Tự động GIỮ trên Google Pixel)"
     "com.android.hotwordenrollment.okgoogle|Lắng nghe mic OK Google 24/7 (ngốn ~103MB RAM)"
     "com.android.hotwordenrollment.xgoogle|Lắng nghe mic Hey Google 24/7"
     "com.google.android.apps.wellbeing|Digital Wellbeing (Theo dõi thời gian dùng app gây khựng)"
@@ -142,7 +146,23 @@ SAFE_PACKAGES=(
     "com.google.android.marvin.talkback|TalkBack (Đọc màn hình cho người khiếm thị)"
     "com.google.android.accessibility.switchaccess|Switch Access"
 
-    # 6. Công cụ test nhà máy
+    # 6. Google Pixel Bloatware & Rác nhà mạng Mỹ/Nhật ẩn trong ROM Pixel
+    "com.google.android.apps.tips|Pixel Tips (Mẹo sử dụng Pixel chạy ngầm)"
+    "com.google.android.apps.helprtc|Google Support / Pixel Troubleshooting video ngầm"
+    "com.google.android.apps.diagnosticstool|Pixel Diagnostics Tool"
+    "com.android.retaildemo|Chế độ trưng bày cửa hàng (Retail Demo)"
+    "com.google.android.retaildemo|Google Retail Demo"
+    "com.verizon.mips.services|My Verizon Services (Rác nhà mạng Mỹ ngầm trong ROM Pixel)"
+    "com.verizon.llkagent|Verizon LLK Agent (Rác nhà mạng Mỹ trong ROM Pixel)"
+    "com.vzw.apnlib|Verizon APN Library"
+    "com.customermobile.preload.vzw|Verizon Preload Agent"
+    "com.att.iqi|AT&T Carrier IQ Telemetry (Theo dõi ngầm nhà mạng AT&T)"
+    "com.tmobile.pr.adapt|T-Mobile Adapt (Dịch vụ nhà mạng T-Mobile ngầm)"
+    "com.sprint.ms.smf.services|Sprint Services (Dịch vụ nhà mạng Sprint ngầm)"
+    "com.sprint.ce.updater|Sprint Carrier Updater"
+    "com.google.omadm.trigger|Cấu hình nhà mạng Mỹ OMA-DM Trigger"
+
+    # 7. Công cụ test nhà máy
     "com.fingerprints.sensortesttool|Test cảm biến vân tay nhà máy"
     "com.goodix.gftest|Test cảm biến Goodix"
     "com.longcheertel.AutoTest|Auto Test nhà máy"
@@ -170,6 +190,13 @@ for entry in "${SAFE_PACKAGES[@]}"; do
         continue
     fi
 
+    # Bảo vệ tính năng độc quyền trên Google Pixel (Now Playing, Live Translate, Copy text đa nhiệm)
+    if [ "$BRAND_LOWER" = "google" ] && { [ "$pkg" = "com.google.android.as" ] || [ "$pkg" = "com.google.android.as.oss" ]; }; then
+        echo "[GIỮ LẠI CHO PIXEL] $pkg - Giữ tính năng Now Playing, Live Caption & Copy chữ đa nhiệm của Pixel"
+        SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+        continue
+    fi
+
     out=$(adb shell "pm uninstall -k --user 0 $pkg" 2>&1 | tr -d '\r')
     if [[ "$out" == *"Success"* ]]; then
         echo "[ĐÃ GỠ] $pkg - $desc"
@@ -179,11 +206,11 @@ for entry in "${SAFE_PACKAGES[@]}"; do
     fi
 done
 
-echo "==> Kết quả Debloat: Đã gỡ $SUCCESS_COUNT gói rác | Bỏ qua $SKIPPED_COUNT gói không có trên máy."
+echo "==> Kết quả Debloat: Đã gỡ $SUCCESS_COUNT gói rác | Bỏ qua $SKIPPED_COUNT gói."
 
-# ---------- 4. Tinh chỉnh hiệu năng & độ mượt ----------
+# ---------- 4. Tinh chỉnh hiệu năng, Pin & Độ mượt ----------
 echo ""
-echo "=== BƯỚC 2: TỐI ƯU ĐỘ MƯỢT & TIẾN TRÌNH NGẦM ==="
+echo "=== BƯỚC 2: TỐI ƯU ĐỘ MƯỢT, PIN MODEM & TIẾN TRÌNH NGẦM ==="
 
 echo "[*] Giảm tỷ lệ Animation xuống 0.5x..."
 adb shell "settings put global window_animation_scale 0.5" >/dev/null 2>&1 || true
@@ -196,8 +223,24 @@ else
     echo "    -> [Lưu ý Xiaomi] Máy chặn WRITE_SECURE_SETTINGS. Hãy chỉnh tay Animation 0.5x trong Developer Options."
 fi
 
-echo "[*] Giới hạn số tiến trình lưu đệm ngầm (max_cached_processes = 8)..."
-adb shell "device_config put activity_manager max_cached_processes 8" >/dev/null 2>&1 || true
+echo "[*] Tối ưu Modem & Quét ngầm (Đặc trị nóng máy & hao pin chờ trên Google Pixel / Android)..."
+adb shell "settings put global mobile_data_always_on 0" >/dev/null 2>&1 || true
+adb shell "settings put global wifi_scan_always_enabled 0" >/dev/null 2>&1 || true
+adb shell "settings put global ble_scan_always_enabled 0" >/dev/null 2>&1 || true
+echo "    -> Đã tắt giữ sóng 4G/5G ngầm khi đang dùng Wi-Fi (mobile_data_always_on=0) & tắt quét Wi-Fi/BLE 24/7!"
+
+if [ "$BRAND_LOWER" = "google" ] || [ "${MEM_TOTAL_KB:-0}" -gt 6500000 ]; then
+    echo "[*] Máy có RAM lớn (>6GB) hoặc là Google Pixel: Mở khóa giới hạn đa nhiệm mặc định..."
+    adb shell "device_config delete activity_manager max_cached_processes" >/dev/null 2>&1 || true
+else
+    echo "[*] Máy RAM <= 6GB: Giới hạn số tiến trình lưu đệm ngầm (max_cached_processes = 8) chống tràn RAM..."
+    adb shell "device_config put activity_manager max_cached_processes 8" >/dev/null 2>&1 || true
+fi
+
+if [ "$BRAND_LOWER" = "samsung" ]; then
+    echo "[*] Tối ưu RAM Plus trên Samsung (hạ xuống 2GB để giảm ghi đọc bộ nhớ UFS/eMMC)..."
+    adb shell "settings put global ram_expand_size 2048" >/dev/null 2>&1 || true
+fi
 
 echo "[*] Dọn bộ nhớ đệm (trim-caches)..."
 adb shell "pm trim-caches 999999999999999999" >/dev/null 2>&1 || true

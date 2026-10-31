@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # MACOS SAFE DEBLOAT, CACHE CLEANUP & PERFORMANCE OPTIMIZER
-# Dành cho việc tối ưu từ xa (SSH / Screen Sharing) máy Mac của em họ.
+# Công cụ tối ưu hóa, dọn dẹp bộ nhớ đệm và tăng tốc an toàn cho máy Mac của bạn.
 #
 # Các bước thực hiện an toàn 100% (không xóa dữ liệu cá nhân hay App Settings):
 #   1. Lưu Backup trạng thái LaunchAgents & thông số hệ thống ra ~/Desktop
@@ -134,7 +134,7 @@ killall Finder >/dev/null 2>&1 || true
 
 DISK_FREE_AFTER=$(df -h / | awk 'NR==2 {print $4}')
 
-# Copy báo cáo vào Clipboard để tiện gửi về Antigravity
+# Copy báo cáo vào Clipboard để bạn tiện kiểm tra hoặc lưu trữ
 {
     echo "=== MACOS OPTIMIZATION REPORT ==="
     echo "Host: $HOST_NAME | Chip: $CHIP_INFO | RAM: ${RAM_GB}GB | macOS: $MACOS_VER"

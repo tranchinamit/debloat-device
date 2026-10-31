@@ -50,8 +50,12 @@ if (-not $devices) {
 
 # ---------- 2. Thu thập thông tin & Backup danh sách Package gốc ----------
 $Brand = ((& adb @adbArgs shell getprop ro.product.brand) -join "").Trim()
+$BrandLower = $Brand.ToLower()
 $Model = ((& adb @adbArgs shell getprop ro.product.model) -join "").Trim() -replace '\s+', '_'
 $AndroidVer = ((& adb @adbArgs shell getprop ro.build.version.release) -join "").Trim()
+$MemTotalRaw = ((& adb @adbArgs shell "grep MemTotal /proc/meminfo") -join "").Trim()
+$MemTotalKB = 0
+if ($MemTotalRaw -match '(\d+)') { $MemTotalKB = [long]$Matches[1] }
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
@@ -108,6 +112,8 @@ $SafeDebloatPackages = @(
     @{ Pkg = "com.miui.vsimcore"; Desc = "Virtual SIM Core" },
 
     # 2. Samsung One UI Bloatware (Bixby, AR Zone, Game Launcher, Quảng cáo/Theo dõi)
+    @{ Pkg = "com.aura.oobe.samsung.gl"; Desc = "AppCloud / IronSource (Bloatware tự tải app quảng cáo ngầm)" },
+    @{ Pkg = "com.samsung.android.game.gos"; Desc = "Game Optimizing Service (GOS - bóp hiệu năng & chạy ngầm)" },
     @{ Pkg = "com.samsung.android.bixby.agent"; Desc = "Trợ lý ảo Bixby Voice" },
     @{ Pkg = "com.samsung.android.bixby.wakeup"; Desc = "Nhận diện giọng nói đánh thức Bixby" },
     @{ Pkg = "com.samsung.android.visionintelligence"; Desc = "Bixby Vision" },
@@ -148,8 +154,8 @@ $SafeDebloatPackages = @(
     @{ Pkg = "com.android.traceur"; Desc = "System Tracing dev log" },
     @{ Pkg = "com.android.egg"; Desc = "Android Easter Egg" },
     @{ Pkg = "com.android.providers.partnerbookmarks"; Desc = "Bookmarks đối tác quảng cáo" },
-    @{ Pkg = "com.google.android.as"; Desc = "Android System Intelligence (ngốn ~103MB RAM ngầm)" },
-    @{ Pkg = "com.google.android.as.oss"; Desc = "Private Compute Services (đi kèm System Intelligence)" },
+    @{ Pkg = "com.google.android.as"; Desc = "Android System Intelligence (Gỡ trên máy RAM thấp; tự động GIỮ trên Google Pixel)" },
+    @{ Pkg = "com.google.android.as.oss"; Desc = "Private Compute Services (Tự động GIỮ trên Google Pixel)" },
     @{ Pkg = "com.android.hotwordenrollment.okgoogle"; Desc = "Lắng nghe mic OK Google 24/7 (ngốn ~103MB RAM)" },
     @{ Pkg = "com.android.hotwordenrollment.xgoogle"; Desc = "Lắng nghe mic Hey Google 24/7" },
     @{ Pkg = "com.google.android.apps.wellbeing"; Desc = "Digital Wellbeing (Theo dõi thời gian dùng app gây khựng)" },
@@ -161,7 +167,23 @@ $SafeDebloatPackages = @(
     @{ Pkg = "com.google.android.marvin.talkback"; Desc = "TalkBack (Đọc màn hình cho người khiếm thị)" },
     @{ Pkg = "com.google.android.accessibility.switchaccess"; Desc = "Switch Access" },
 
-    # 6. Công cụ kiểm thử / cấu hình rác của nhà máy
+    # 6. Google Pixel Bloatware & Rác nhà mạng Mỹ/Nhật ẩn trong ROM Pixel
+    @{ Pkg = "com.google.android.apps.tips"; Desc = "Pixel Tips (Mẹo sử dụng Pixel chạy ngầm)" },
+    @{ Pkg = "com.google.android.apps.helprtc"; Desc = "Google Support / Pixel Troubleshooting video ngầm" },
+    @{ Pkg = "com.google.android.apps.diagnosticstool"; Desc = "Pixel Diagnostics Tool" },
+    @{ Pkg = "com.android.retaildemo"; Desc = "Chế độ trưng bày cửa hàng (Retail Demo)" },
+    @{ Pkg = "com.google.android.retaildemo"; Desc = "Google Retail Demo" },
+    @{ Pkg = "com.verizon.mips.services"; Desc = "My Verizon Services (Rác nhà mạng Mỹ ngầm trong ROM Pixel)" },
+    @{ Pkg = "com.verizon.llkagent"; Desc = "Verizon LLK Agent (Rác nhà mạng Mỹ trong ROM Pixel)" },
+    @{ Pkg = "com.vzw.apnlib"; Desc = "Verizon APN Library" },
+    @{ Pkg = "com.customermobile.preload.vzw"; Desc = "Verizon Preload Agent" },
+    @{ Pkg = "com.att.iqi"; Desc = "AT&T Carrier IQ Telemetry (Theo dõi ngầm nhà mạng AT&T)" },
+    @{ Pkg = "com.tmobile.pr.adapt"; Desc = "T-Mobile Adapt (Dịch vụ nhà mạng T-Mobile ngầm)" },
+    @{ Pkg = "com.sprint.ms.smf.services"; Desc = "Sprint Services (Dịch vụ nhà mạng Sprint ngầm)" },
+    @{ Pkg = "com.sprint.ce.updater"; Desc = "Sprint Carrier Updater" },
+    @{ Pkg = "com.google.omadm.trigger"; Desc = "Cấu hình nhà mạng Mỹ OMA-DM Trigger" },
+
+    # 7. Công cụ kiểm thử / cấu hình rác của nhà máy
     @{ Pkg = "com.fingerprints.sensortesttool"; Desc = "Test cảm biến vân tay nhà máy" },
     @{ Pkg = "com.goodix.gftest"; Desc = "Test cảm biến Goodix" },
     @{ Pkg = "com.longcheertel.AutoTest"; Desc = "Auto Test nhà máy" },
@@ -187,6 +209,13 @@ foreach ($item in $SafeDebloatPackages) {
         continue
     }
 
+    # Bảo vệ tính năng độc quyền trên Google Pixel (Now Playing, Live Translate, Copy text đa nhiệm)
+    if ($BrandLower -eq "google" -and ($pkg -eq "com.google.android.as" -or $pkg -eq "com.google.android.as.oss")) {
+        Write-Host "[GIỮ LẠI CHO PIXEL] $pkg - Giữ tính năng Now Playing, Live Caption & Copy chữ đa nhiệm của Pixel" -ForegroundColor DarkCyan
+        $SkippedCount++
+        continue
+    }
+
     $out = (& adb @adbArgs shell "pm uninstall -k --user 0 $pkg" 2>&1) -join " "
     if ($out -match "Success") {
         Write-Host "[ĐÃ GỠ] $pkg - $desc" -ForegroundColor Green
@@ -195,10 +224,10 @@ foreach ($item in $SafeDebloatPackages) {
         Write-Host "[LỖI]   $pkg : $out" -ForegroundColor DarkYellow
     }
 }
-Write-Host "==> Kết quả Debloat: Đã gỡ $SuccessCount gói rác | Bỏ qua $SkippedCount gói không có trên máy." -ForegroundColor Cyan
+Write-Host "==> Kết quả Debloat: Đã gỡ $SuccessCount gói rác | Bỏ qua $SkippedCount gói." -ForegroundColor Cyan
 
-# ---------- 4. Tinh chỉnh hiệu năng & độ mượt ----------
-Write-Host "`n=== BƯỚC 2: TỐI ƯU ĐỘ MƯỢT & TIẾN TRÌNH NGẦM ===" -ForegroundColor Cyan
+# ---------- 4. Tinh chỉnh hiệu năng, Pin & Độ mượt ----------
+Write-Host "`n=== BƯỚC 2: TỐI ƯU ĐỘ MƯỢT, PIN MODEM & TIẾN TRÌNH NGẦM ===" -ForegroundColor Cyan
 
 Write-Host "[*] Giảm tỷ lệ Animation xuống 0.5x..." -ForegroundColor White
 & adb @adbArgs shell "settings put global window_animation_scale 0.5" 2>$null
@@ -211,8 +240,24 @@ if ($animCheck -eq "0.5") {
     Write-Host "    -> [Lưu ý Xiaomi] Máy chặn quyền WRITE_SECURE_SETTINGS. Hãy chỉnh tay Animation 0.5x trong Developer Options." -ForegroundColor Yellow
 }
 
-Write-Host "[*] Giới hạn số tiến trình lưu đệm ngầm (max_cached_processes = 8)..." -ForegroundColor White
-& adb @adbArgs shell "device_config put activity_manager max_cached_processes 8" 2>$null
+Write-Host "[*] Tối ưu Modem & Quét ngầm (Đặc trị nóng máy & hao pin chờ trên Google Pixel / Android)..." -ForegroundColor White
+& adb @adbArgs shell "settings put global mobile_data_always_on 0" 2>$null
+& adb @adbArgs shell "settings put global wifi_scan_always_enabled 0" 2>$null
+& adb @adbArgs shell "settings put global ble_scan_always_enabled 0" 2>$null
+Write-Host "    -> Đã tắt giữ sóng 4G/5G ngầm khi đang dùng Wi-Fi (mobile_data_always_on=0) & tắt quét Wi-Fi/BLE 24/7!" -ForegroundColor Green
+
+if ($BrandLower -eq "google" -or $MemTotalKB -gt 6500000) {
+    Write-Host "[*] Máy có RAM lớn (>6GB) hoặc là Google Pixel: Mở khóa giới hạn đa nhiệm mặc định..." -ForegroundColor White
+    & adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
+} else {
+    Write-Host "[*] Máy RAM <= 6GB: Giới hạn số tiến trình lưu đệm ngầm (max_cached_processes = 8) chống tràn RAM..." -ForegroundColor White
+    & adb @adbArgs shell "device_config put activity_manager max_cached_processes 8" 2>$null
+}
+
+if ($BrandLower -eq "samsung") {
+    Write-Host "[*] Tối ưu RAM Plus trên Samsung (hạ xuống 2GB để giảm ghi đọc bộ nhớ UFS/eMMC)..." -ForegroundColor White
+    & adb @adbArgs shell "settings put global ram_expand_size 2048" 2>$null
+}
 
 Write-Host "[*] Dọn bộ nhớ đệm (trim-caches)..." -ForegroundColor White
 & adb @adbArgs shell "pm trim-caches 999999999999999999" 2>$null

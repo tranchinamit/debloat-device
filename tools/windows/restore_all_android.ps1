@@ -73,10 +73,13 @@ foreach ($pkg in $sortedPkgs) {
     }
 }
 
-Write-Host "`n[*] Đang đưa cài đặt Animation và Background Process Limit về mặc định..." -ForegroundColor Cyan
+Write-Host "`n[*] Đang đưa cài đặt Animation, Modem và Background Process Limit về mặc định..." -ForegroundColor Cyan
 & adb @adbArgs shell "settings put global window_animation_scale 1.0" 2>$null
 & adb @adbArgs shell "settings put global transition_animation_scale 1.0" 2>$null
 & adb @adbArgs shell "settings put global animator_duration_scale 1.0" 2>$null
+& adb @adbArgs shell "settings put global mobile_data_always_on 1" 2>$null
+& adb @adbArgs shell "settings put global wifi_scan_always_enabled 1" 2>$null
+& adb @adbArgs shell "settings put global ble_scan_always_enabled 1" 2>$null
 & adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
 
 $remaining = @(Get-UninstalledPackages)

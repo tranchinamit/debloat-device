@@ -54,10 +54,13 @@ for pkg in $UNINSTALLED; do
 done
 
 echo ""
-echo "[*] Đang đưa cài đặt Animation và Background Process Limit về mặc định..."
+echo "[*] Đang đưa cài đặt Animation, Modem và Background Process Limit về mặc định..."
 adb shell "settings put global window_animation_scale 1.0" >/dev/null 2>&1 || true
 adb shell "settings put global transition_animation_scale 1.0" >/dev/null 2>&1 || true
 adb shell "settings put global animator_duration_scale 1.0" >/dev/null 2>&1 || true
+adb shell "settings put global mobile_data_always_on 1" >/dev/null 2>&1 || true
+adb shell "settings put global wifi_scan_always_enabled 1" >/dev/null 2>&1 || true
+adb shell "settings put global ble_scan_always_enabled 1" >/dev/null 2>&1 || true
 adb shell "device_config delete activity_manager max_cached_processes" >/dev/null 2>&1 || true
 
 echo "==> Hoàn tất khôi phục!"
