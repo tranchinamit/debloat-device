@@ -3,14 +3,15 @@
   [STEP 2 - CUSTOM DEBLOAT FOR GOOGLE PIXEL]
   Run after reviewing Step 1 scan results.
   Supports preview mode (-DryRun), group filtering (-Group), and extra packages (-ExtraPackages).
-  Strictly protects core Google Pixel features (Now Playing, eSIM, AICore, Camera, Launcher).
+  Strictly protects core Google Pixel features (Now Playing, eSIM, AICore, Camera, Launcher,
+  Pixel Stand Dreamliner, OK Google Hotword).
   Exports .md report to Desktop AND copies to Clipboard.
 
 .USAGE
   1. Preview packages that will be removed (no changes made):
      powershell -ExecutionPolicy Bypass -File .\step2_debloat_custom.ps1 -DryRun
 
-  2. Remove all safe bloatware groups (Carrier + Telemetry + BloatApps):
+  2. Remove all selected safe bloatware groups (Carrier + Telemetry + BloatApps):
      powershell -ExecutionPolicy Bypass -File .\step2_debloat_custom.ps1
 
   3. Remove additional specific packages chosen after Step 1:
@@ -58,26 +59,38 @@ $ProtectedPixelPackages = [System.Collections.Generic.HashSet[string]]::new([str
     "com.google.android.dialer",                 # Google Phone Dialer
     "com.google.android.apps.messaging",         # Google Messages
     "com.google.android.contacts",               # Google Contacts
-    "com.google.android.apps.photos"             # Google Photos
+    "com.google.android.apps.photos",            # Google Photos
+    "com.google.android.apps.dreamliner",        # Pixel Stand Wireless Charger (Kept)
+    "com.google.android.dreamlinerupdater",      # Pixel Stand Updater (Kept)
+    "com.android.hotwordenrollment.okgoogle",    # OK Google Hotword (Kept)
+    "com.android.hotwordenrollment.xgoogle"      # Hey Google Hotword (Kept)
 ))
 
-# Group 1: Hidden US/JP Carrier Bloatware in Pixel ROMs
+# Group 1: Hidden US Carrier Bloatware in Pixel ROMs
 $CarrierPackages = @(
-    @{ Pkg = "com.verizon.mips.services";       Desc = "My Verizon Services (Hidden US Carrier bloat)" },
-    @{ Pkg = "com.verizon.llkagent";            Desc = "Verizon LLK Agent" },
-    @{ Pkg = "com.vzw.apnlib";                  Desc = "Verizon APN Library" },
-    @{ Pkg = "com.customermobile.preload.vzw";  Desc = "Verizon Preload Agent" },
-    @{ Pkg = "com.att.iqi";                     Desc = "AT&T Carrier IQ Telemetry" },
-    @{ Pkg = "com.tmobile.pr.adapt";            Desc = "T-Mobile Adapt Service" },
-    @{ Pkg = "com.sprint.ms.smf.services";      Desc = "Sprint Carrier Services" },
-    @{ Pkg = "com.sprint.ce.updater";           Desc = "Sprint Carrier Updater" },
-    @{ Pkg = "com.google.omadm.trigger";        Desc = "US Carrier OMA-DM Trigger" },
-    @{ Pkg = "com.android.omadm.service";       Desc = "OMA-DM Carrier Service" },
-    @{ Pkg = "com.nttdocomo.android.docomoset"; Desc = "Docomo Carrier Settings" },
-    @{ Pkg = "jp.softbank.mb.ichinaviclt";      Desc = "SoftBank Carrier Navigation" }
+    @{ Pkg = "com.verizon.obdm";                         Desc = "Verizon OBDM Device Management" },
+    @{ Pkg = "com.verizon.obdm_permissions";             Desc = "Verizon OBDM Permissions" },
+    @{ Pkg = "com.verizon.services";                     Desc = "Verizon Background Services" },
+    @{ Pkg = "com.verizon.mips.services";                Desc = "My Verizon Services" },
+    @{ Pkg = "com.verizon.llkagent";                     Desc = "Verizon LLK Agent" },
+    @{ Pkg = "com.vzw.apnlib";                           Desc = "Verizon APN Library" },
+    @{ Pkg = "com.customermobile.preload.vzw";           Desc = "Verizon Preload Agent" },
+    @{ Pkg = "com.android.sdm.plugins.sprintdm";         Desc = "Sprint Carrier DM Plugin" },
+    @{ Pkg = "com.android.sdm.plugins.usccdm";           Desc = "US Cellular Carrier DM Plugin" },
+    @{ Pkg = "com.android.sdm.plugins.connmo";           Desc = "US Carrier SDM ConnMO Plugin" },
+    @{ Pkg = "com.android.sdm.plugins.dcmo";             Desc = "US Carrier SDM DCMO Plugin" },
+    @{ Pkg = "com.android.sdm.plugins.diagmon";          Desc = "US Carrier Diagnostic Monitor" },
+    @{ Pkg = "com.android.omadm.service";                Desc = "OMA-DM Carrier Service" },
+    @{ Pkg = "com.google.omadm.trigger";                 Desc = "US Carrier OMA-DM Trigger" },
+    @{ Pkg = "com.google.android.apps.cbrsnetworkmonitor"; Desc = "US CBRS Band Network Monitor" },
+    @{ Pkg = "com.google.android.apps.carrier.log";      Desc = "Carrier Background Logger" },
+    @{ Pkg = "com.att.iqi";                              Desc = "AT&T Carrier IQ Telemetry" },
+    @{ Pkg = "com.tmobile.pr.adapt";                     Desc = "T-Mobile Adapt Service" },
+    @{ Pkg = "com.sprint.ms.smf.services";               Desc = "Sprint Carrier Services" },
+    @{ Pkg = "com.sprint.ce.updater";                    Desc = "Sprint Carrier Updater" }
 )
 
-# Group 2: Google Advertising, Diagnostics & Telemetry Services
+# Group 2: Google Advertising, Diagnostics & Internal Bug/Telemetry Services
 $TelemetryPackages = @(
     @{ Pkg = "com.google.mainline.telemetry";                       Desc = "Google Mainline Telemetry" },
     @{ Pkg = "com.google.mainline.adservices";                      Desc = "Google Mainline AdServices" },
@@ -86,26 +99,28 @@ $TelemetryPackages = @(
     @{ Pkg = "com.google.android.federatedcompute";                 Desc = "Federated Compute Ad Training" },
     @{ Pkg = "com.google.android.feedback";                         Desc = "Google Feedback" },
     @{ Pkg = "com.android.traceur";                                 Desc = "System Tracing Dev Logger" },
+    @{ Pkg = "com.google.android.apps.internal.betterbug";          Desc = "Google Internal BetterBug Reporter" },
+    @{ Pkg = "com.google.SSRestartDetector";                        Desc = "Subsystem Restart Telemetry Detector" },
+    @{ Pkg = "com.qualcomm.qti.devicestatisticsservice";            Desc = "Qualcomm Device Statistics Telemetry" },
     @{ Pkg = "com.google.android.apps.helprtc";                     Desc = "Pixel Support Video Share" },
     @{ Pkg = "com.google.android.apps.diagnosticstool";             Desc = "Pixel Diagnostics Tool" }
 )
 
-# Group 3: Pre-installed Promo / Bloat Apps
+# Group 3: Redundant / Discontinued System Utilities & Selected Media Bloat
 $BloatAppsPackages = @(
-    @{ Pkg = "com.google.android.apps.tips";                  Desc = "Pixel Tips" },
-    @{ Pkg = "com.android.retaildemo";                        Desc = "Retail Demo Mode" },
-    @{ Pkg = "com.google.android.retaildemo";                 Desc = "Google Retail Demo" },
-    @{ Pkg = "com.google.android.apps.subscriptions.red";     Desc = "Google One Promo" },
-    @{ Pkg = "com.google.android.videos";                     Desc = "Google TV / Play Movies" },
-    @{ Pkg = "com.google.android.apps.tachyon";               Desc = "Google Meet / Duo" },
-    @{ Pkg = "com.google.android.apps.restore";               Desc = "Google Setup Restore" },
-    @{ Pkg = "com.android.providers.partnerbookmarks";        Desc = "Partner Bookmarks" },
-    @{ Pkg = "com.android.egg";                               Desc = "Android Easter Egg" },
-    @{ Pkg = "com.android.hotwordenrollment.okgoogle";        Desc = "Always-on OK Google Hotword (~103MB RAM)" },
-    @{ Pkg = "com.android.hotwordenrollment.xgoogle";         Desc = "Always-on Hey Google Hotword" },
-    @{ Pkg = "com.google.android.apps.wellbeing";             Desc = "Digital Wellbeing background tracker" },
-    @{ Pkg = "com.google.android.marvin.talkback";            Desc = "TalkBack Accessibility" },
-    @{ Pkg = "com.google.android.accessibility.switchaccess"; Desc = "Switch Access" }
+    @{ Pkg = "com.google.android.apps.podcasts";                    Desc = "Google Podcasts (Discontinued)" },
+    @{ Pkg = "com.google.android.apps.restore";                     Desc = "Google Setup Restore" },
+    @{ Pkg = "com.google.android.apps.pixelmigrate";                Desc = "Pixel Data Transfer Migrate Tool" },
+    @{ Pkg = "com.google.android.apps.tips";                        Desc = "Pixel Tips" },
+    @{ Pkg = "com.android.providers.partnerbookmarks";              Desc = "Partner Bookmarks" },
+    @{ Pkg = "com.android.egg";                                     Desc = "Android Easter Egg" },
+    @{ Pkg = "com.google.android.marvin.talkback";                  Desc = "TalkBack Accessibility" },
+    @{ Pkg = "com.google.android.accessibility.switchaccess";       Desc = "Switch Access" },
+    @{ Pkg = "com.google.android.accessibility.soundamplifier";     Desc = "Sound Amplifier" },
+    @{ Pkg = "com.google.audio.hearing.visualization.accessibility.scribe"; Desc = "Live Transcribe" },
+    @{ Pkg = "com.google.android.apps.magazines";                   Desc = "Google News / Magazines" },
+    @{ Pkg = "com.google.android.videos";                           Desc = "Google TV / Play Movies" },
+    @{ Pkg = "com.google.android.apps.youtube.music";               Desc = "YouTube Music" }
 )
 
 $TargetList = @()

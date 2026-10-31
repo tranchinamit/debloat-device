@@ -1,25 +1,17 @@
 <#
 .SYNOPSIS
-  [STEP 3 - OPTIMIZE MODEM, BATTERY & SMOOTHNESS FOR GOOGLE PIXEL]
-  Applies safe system optimizations for Google Pixel:
-  1. Disables background mobile data while on Wi-Fi (mobile_data_always_on = 0) to reduce modem heat & idle drain.
-  2. Disables 24/7 background Wi-Fi & BLE scanning.
-  3. Sets Animation scales to 0.5x for snappy UI response.
-  4. Unlocks full RAM multitasking for Pixel (removes artificial max_cached_processes caps).
-  5. Trims system caches & runs AOT compilation (bg-dexopt-job).
+  [STEP 3 - OPTIMIZE ZRAM MULTITASKING, CACHES & AOT COMPILATION FOR GOOGLE PIXEL]
+  Applies only:
+  1. Sets max_cached_processes = 16 (relieves 98% ZRAM swap pressure while keeping 16 apps cached in RAM).
+  2. Trims system caches (pm trim-caches) & runs AOT app compilation (bg-dexopt-job).
   Exports .md report to Desktop AND copies to Clipboard.
 
 .USAGE
-  Full optimization:
-    powershell -ExecutionPolicy Bypass -File .\step3_optimize_pixel.ps1
-
-  Fast mode (skip 60s AOT dexopt compilation):
-    powershell -ExecutionPolicy Bypass -File .\step3_optimize_pixel.ps1 -SkipDexopt
+  powershell -ExecutionPolicy Bypass -File .\step3_optimize_pixel.ps1
 #>
 
 param(
-    [double]$AnimationScale = 0.5,
-    [switch]$SkipModemTune,
+    [int]$MaxCachedProcesses = 16,
     [switch]$SkipDexopt,
     [string]$Device = ""
 )
@@ -43,73 +35,56 @@ $SafeModel  = if ($Model) { $Model -replace '\s+', '_' } else { "Device" }
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
 $ReportFile = Join-Path $DesktopDir "Pixel_${SafeModel}_Step3_Optimize.md"
 
-$BeforeAnim  = ((& adb @adbArgs shell "settings get global window_animation_scale") -join "").Trim()
-$BeforeMob   = ((& adb @adbArgs shell "settings get global mobile_data_always_on") -join "").Trim()
-$BeforeWifi  = ((& adb @adbArgs shell "settings get global wifi_scan_always_enabled") -join "").Trim()
-$BeforeBle   = ((& adb @adbArgs shell "settings get global ble_scan_always_enabled") -join "").Trim()
+$BeforeCached = (& adb @adbArgs shell "dumpsys activity settings | grep -i cur_max_cached") -join " "
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   STEP 3: GOOGLE PIXEL MODEM, BATTERY & UI OPTIMIZATION  " -ForegroundColor Cyan
+Write-Host "   STEP 3: GOOGLE PIXEL ZRAM, CACHE & AOT OPTIMIZATION    " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# 1. Animation Scale
-Write-Host "`n[1/5] Setting UI Animation Scale to ${AnimationScale}x..." -ForegroundColor White
-& adb @adbArgs shell "settings put global window_animation_scale $AnimationScale" 2>$null
-& adb @adbArgs shell "settings put global transition_animation_scale $AnimationScale" 2>$null
-& adb @adbArgs shell "settings put global animator_duration_scale $AnimationScale" 2>$null
-Write-Host "      -> Animation Scale set to ${AnimationScale}x!" -ForegroundColor Green
+# 1. Balance RAM & ZRAM Swap pressure
+Write-Host "`n[1/3] Setting max_cached_processes = $MaxCachedProcesses..." -ForegroundColor White
+& adb @adbArgs shell "device_config put activity_manager max_cached_processes $MaxCachedProcesses" 2>$null
+Write-Host "      -> Set max_cached_processes = $MaxCachedProcesses!" -ForegroundColor Green
 
-# 2. Modem & Background Scanning
-if (-not $SkipModemTune) {
-    Write-Host "`n[2/5] Optimizing Modem & Disabling 24/7 Background Scanning..." -ForegroundColor White
-    & adb @adbArgs shell "settings put global mobile_data_always_on 0" 2>$null
-    & adb @adbArgs shell "settings put global wifi_scan_always_enabled 0" 2>$null
-    & adb @adbArgs shell "settings put global ble_scan_always_enabled 0" 2>$null
-    Write-Host "      -> Disabled mobile_data_always_on (0) & wifi/ble_scan_always_enabled (0)!" -ForegroundColor Green
-}
-
-# 3. RAM Multitasking
-Write-Host "`n[3/5] Unlocking native RAM multitasking limit on Pixel..." -ForegroundColor White
-& adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
-Write-Host "      -> Unlocked native RAM manager!" -ForegroundColor Green
-
-# 4. Trim Caches
-Write-Host "`n[4/5] Trimming system caches (pm trim-caches)..." -ForegroundColor White
+# 2. Trim Caches
+Write-Host "`n[2/3] Trimming system caches (pm trim-caches)..." -ForegroundColor White
 & adb @adbArgs shell "pm trim-caches 999999999999999999" 2>$null
 Write-Host "      -> System caches trimmed!" -ForegroundColor Green
 
-# 5. AOT Dexopt
+# 3. AOT Dexopt
 $DexoptStatus = "Skipped (-SkipDexopt)"
 if (-not $SkipDexopt) {
-    Write-Host "`n[5/5] Running AOT app optimization (bg-dexopt-job, takes ~30-90s)..." -ForegroundColor Yellow
+    Write-Host "`n[3/3] Running AOT app optimization (bg-dexopt-job, takes ~30-90s)..." -ForegroundColor Yellow
     & adb @adbArgs shell "cmd package bg-dexopt-job" | Out-Null
     Write-Host "      -> AOT compilation completed!" -ForegroundColor Green
     $DexoptStatus = "Completed (bg-dexopt-job)"
 } else {
-    Write-Host "`n[5/5] Skipped bg-dexopt-job as requested." -ForegroundColor DarkGray
+    Write-Host "`n[3/3] Skipped bg-dexopt-job as requested." -ForegroundColor DarkGray
 }
 
-$AfterAnim  = ((& adb @adbArgs shell "settings get global window_animation_scale") -join "").Trim()
-$AfterMob   = ((& adb @adbArgs shell "settings get global mobile_data_always_on") -join "").Trim()
-$AfterWifi  = ((& adb @adbArgs shell "settings get global wifi_scan_always_enabled") -join "").Trim()
-$AfterBle   = ((& adb @adbArgs shell "settings get global ble_scan_always_enabled") -join "").Trim()
+$AfterCached = (& adb @adbArgs shell "dumpsys activity settings | grep -i cur_max_cached") -join " "
+$StorageDf   = (& adb @adbArgs shell "df -h /data") -join "`n"
+$MemInfo     = (& adb @adbArgs shell "cat /proc/meminfo | grep -E 'MemTotal|MemFree|MemAvailable|Cached|SwapTotal|SwapFree'") -join "`n"
 
 $MdReport = @(
     "# Google Pixel Optimization Report (Step 3 - Optimize)"
     ""
     "- **Time:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
     "- **Device:** $Model"
+    "- **max_cached_processes (Before):** ``$BeforeCached``"
+    "- **max_cached_processes (After):** ``$AfterCached``"
+    "- **Cache Cleanup (pm trim-caches):** ``Completed``"
+    "- **AOT Compilation (bg-dexopt-job):** ``$DexoptStatus``"
     ""
-    "## Before vs. After Settings"
-    "| Setting | Before | After | Purpose |"
-    "| :--- | :---: | :---: | :--- |"
-    "| ``window_animation_scale`` | ``$BeforeAnim`` | ``$AfterAnim`` | Faster UI transitions (0.5x) |"
-    "| ``mobile_data_always_on`` | ``$BeforeMob`` | ``$AfterMob`` | Turn off idle 4G/5G drain while on Wi-Fi |"
-    "| ``wifi_scan_always_enabled`` | ``$BeforeWifi`` | ``$AfterWifi`` | Stop 24/7 background Wi-Fi scanning |"
-    "| ``ble_scan_always_enabled`` | ``$BeforeBle`` | ``$AfterBle`` | Stop 24/7 background Bluetooth BLE scanning |"
-    "| ``max_cached_processes`` | - | ``Default (Unlocked)`` | Full RAM multitasking for Pixel |"
-    "| ``pm trim-caches`` | - | ``Trimmed`` | Free temporary system caches |"
-    "| ``bg-dexopt-job`` (AOT) | - | ``$DexoptStatus`` | Pre-compile app code for faster launch |"
+    "## Storage (/data)"
+    '```text'
+    $StorageDf
+    '```'
+    ""
+    "## RAM & Swap Info"
+    '```text'
+    $MemInfo
+    '```'
 ) -join "`r`n"
 
 $MdReport | Set-Content -Path $ReportFile -Encoding UTF8
