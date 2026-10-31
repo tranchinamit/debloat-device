@@ -2,7 +2,7 @@
 
 > Repo: [github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation](https://github.com/Universal-Debloater-Alliance/universal-android-debloater-next-generation)  
 > UAD-ng = GUI viết bằng Rust, cross-platform, không cần root, chạy trên macOS.  
-> Áp dụng cho: **Redmi Note 4**, **Samsung Galaxy M55**, **Samsung M cao cấp** và bất kỳ Android nào.
+> Áp dụng cho: **Xiaomi / Redmi / POCO (MIUI / HyperOS)**, **Samsung Galaxy (One UI)** và bất kỳ điện thoại Android nào.
 
 ---
 
@@ -63,17 +63,23 @@ chmod +x uad_ng
 
 ## Bước 1 — Bật Developer Options trên điện thoại
 
-### Redmi Note 4 (MIUI)
-1. **Cài đặt → Giới thiệu điện thoại**
-2. Bấm **"Phiên bản MIUI"** 7 lần
-3. **Cài đặt → Cài đặt thêm → Tùy chọn nhà phát triển**
-4. Bật **USB Debugging**
+### Xiaomi / Redmi / POCO (MIUI / HyperOS)
+1. **Cài đặt → Giới thiệu điện thoại** (hoặc *Thông tin thiết bị*).
+2. Bấm liên tục 7 lần vào **"Phiên bản OS"** (HyperOS) hoặc **"Phiên bản MIUI"** cho đến khi báo bạn đã là nhà phát triển.
+3. Quay lại **Cài đặt → Cài đặt bổ sung (Cài đặt thêm) → Tùy chọn cho nhà phát triển**.
+4. Bật **Gỡ lỗi USB (USB Debugging)** — *Đủ để UAD-ng kết nối và debloat xóa app*.
+5. ⚠️ **Lưu ý đặc biệt cho Xiaomi (nếu muốn can thiệp sâu qua ADB):**  
+   Để chạy được các lệnh `settings put` hoặc phân quyền nâng cao, Xiaomi bắt buộc phải bật thêm:  
+   - **Gỡ lỗi USB (Cài đặt bảo mật)** / *USB debugging (Security settings)*.  
+   - *Yêu cầu:* Phải lắp SIM có mạng di động + đăng nhập tài khoản Mi (Mi Account), sau đó xác nhận qua 3 bước cảnh báo 10 giây.  
+   - *Nếu không bật:* Khi chạy lệnh `adb shell settings put ...` sẽ bị chặn với lỗi `java.lang.SecurityException: Permission denial, must have one of: [android.permission.WRITE_SECURE_SETTINGS]`.
 
-### Samsung Galaxy M55 / M cao cấp (One UI)
-1. **Cài đặt → Thông tin điện thoại → Thông tin phần mềm**
-2. Bấm **"Số bản dựng"** 7 lần
-3. **Cài đặt → Tùy chọn nhà phát triển**
-4. Bật **USB Debugging**
+### Samsung Galaxy (One UI)
+1. **Cài đặt → Thông tin điện thoại → Thông tin phần mềm**.
+2. Bấm liên tục 7 lần vào **"Số bản dựng"** (Build number).
+3. Quay lại **Cài đặt → Cài đặt cho người phát triển** (hoặc *Tùy chọn nhà phát triển*).
+4. Bật **Gỡ lỗi USB** (USB Debugging).  
+> *Khác với Xiaomi, Samsung không chặn quyền shell đối với `settings put`, nên sau khi bật USB Debugging là bạn có thể thực thi đầy đủ các lệnh tối ưu qua ADB ngay mà không cần tài khoản hay SIM.*
 
 ---
 
@@ -191,17 +197,56 @@ adb shell pm list packages -d
 
 ---
 
-## Tối ưu thêm sau khi debloat (bất kỳ điện thoại nào)
+## Tối ưu thêm sau khi debloat (Samsung & Xiaomi)
+
+### 1. Giảm tỷ lệ Animation (giúp giao diện phản hồi nhanh và mượt hơn)
+
+3 thông số animation giúp rút ngắn một nửa thời gian chuyển động đồ họa (từ 1.0x xuống 0.5x), mang lại cảm giác máy nhanh và nhạy hơn rõ rệt:
+- `window_animation_scale`: Tỷ lệ hình động cửa sổ (mở/đóng app, popup dialog).
+- `transition_animation_scale`: Tỷ lệ hình động chuyển tiếp giữa các màn hình / Activity.
+- `animator_duration_scale`: Thời lượng hiệu ứng chuyển động (progress bar, hiệu ứng bung menu).
+
+#### Cách A: Chạy qua lệnh ADB
+> Phù hợp với **Samsung** hoặc **Xiaomi đã bật "USB debugging (Security settings)"**:
 
 ```bash
-# Giảm animation → mượt hơn rõ rệt
+# Giảm animation xuống 0.5x
 adb shell settings put global window_animation_scale 0.5
 adb shell settings put global transition_animation_scale 0.5
 adb shell settings put global animator_duration_scale 0.5
-
-# Giới hạn background processes
-adb shell settings put global max_cached_processes 4
 ```
+
+> ⚠️ **Lỗi thường gặp trên Xiaomi:**  
+> Nếu gặp `SecurityException: Permission denial (WRITE_SECURE_SETTINGS)`, nghĩa là máy Xiaomi chưa bật *Gỡ lỗi USB (Cài đặt bảo mật)*. Bạn có thể bật tính năng đó hoặc dùng **Cách B** trực tiếp trên màn hình máy.
+
+#### Cách B: Chỉnh bằng tay trong Cài đặt (Không cần ADB, không lo lỗi quyền)
+Vào **Cài đặt** → **Tùy chọn nhà phát triển** → cuộn đến nhóm **Hình vẽ** (Drawing) và chỉnh 3 mục về **0.5x**:
+- *Tỷ lệ hình động của cửa sổ* → `0.5x`
+- *Tỷ lệ hình động chuyển tiếp* → `0.5x`
+- *Tỷ lệ thời lượng hình động* → `0.5x`
+
+---
+
+### 2. Giới hạn tiến trình chạy ngầm (Background Process Limit)
+
+Giúp máy có dung lượng RAM khiêm tốn (3GB - 6GB) không bị quá tải do quá nhiều ứng dụng chạy nền cùng lúc.
+
+#### Dùng lệnh ADB chuẩn (Android 11 - 15):
+> ⚠️ **Lưu ý quan trọng:** Lệnh cũ `settings put global max_cached_processes 4` **không còn hiệu lực trên Android 11+ / Android 14, 15** và bị chặn trên Xiaomi. Hãy dùng lệnh `device_config` chuẩn sau (chạy được trên cả Samsung và Xiaomi mà không bị báo lỗi quyền):
+
+```bash
+# Giới hạn tối đa 4 tiến trình ngầm
+adb shell device_config put activity_manager max_cached_processes 4
+
+# Kiểm tra lại (tìm dòng CUR_MAX_CACHED_PROCESSES=4)
+adb shell dumpsys activity settings | grep -i max_cached
+
+# (Tùy chọn) Xóa giới hạn, đưa về mặc định của hệ điều hành:
+adb shell device_config delete activity_manager max_cached_processes
+```
+
+#### Hoặc chỉnh trực tiếp trên điện thoại:
+Vào **Tùy chọn nhà phát triển** → cuộn đến nhóm **Ứng dụng** (Apps) → **Giới hạn quá trình nền** (Background process limit) → chọn **Tối đa 4 quá trình** (*At most 4 processes*).
 
 ---
 
