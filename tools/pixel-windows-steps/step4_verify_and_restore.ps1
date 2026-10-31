@@ -1,18 +1,18 @@
 <#
 .SYNOPSIS
-  [BƯỚC 4 - KIỂM TRA KẾT QUẢ SAU TỐI ƯU HOẶC KHÔI PHỤC GÓI ĐÃ GỠ]
-  Mặc định: Kiểm tra lại RAM trống, Bộ nhớ trống, Nhiệt độ Pin, Cài đặt Modem,
-  xuất báo cáo ra file Markdown (.md) ngoài Desktop VÀ copy vào Clipboard.
-  Hỗ trợ khôi phục nhanh 1 gói (-RestorePackage) hoặc khôi phục toàn bộ về nguyên bản (-RestoreAll).
+  [STEP 4 - VERIFY OPTIMIZATION RESULTS OR RESTORE PACKAGES]
+  Default: Checks free RAM, free Storage, Battery temp, Modem settings,
+  exports .md report to Desktop AND copies to Clipboard.
+  Also supports restoring a single package (-RestorePackage) or all packages (-RestoreAll).
 
 .USAGE
-  1. Kiểm tra thông số sau khi tối ưu:
+  1. Verify metrics after optimization:
      powershell -ExecutionPolicy Bypass -File .\step4_verify_and_restore.ps1
 
-  2. Khôi phục 1 gói cụ thể:
+  2. Restore a single package:
      powershell -ExecutionPolicy Bypass -File .\step4_verify_and_restore.ps1 -RestorePackage com.google.android.videos
 
-  3. Khôi phục toàn bộ máy về mặc định:
+  3. Restore all uninstalled packages & reset settings to factory defaults:
      powershell -ExecutionPolicy Bypass -File .\step4_verify_and_restore.ps1 -RestoreAll
 #>
 
@@ -23,13 +23,12 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     if (Test-Path "C:\adb_work\platform-tools\adb.exe") {
         $env:Path = "C:\adb_work\platform-tools;" + $env:Path
     } else {
-        Write-Host "[!] Chưa có ADB. Hãy chạy step1_scan_pixel.ps1 trước!" -ForegroundColor Red
+        Write-Host "[!] ADB not found. Run step1_scan_pixel.ps1 first!" -ForegroundColor Red
         exit 1
     }
 }
@@ -43,25 +42,25 @@ $DesktopDir = [Environment]::GetFolderPath("Desktop")
 $ReportFile = Join-Path $DesktopDir "Pixel_${SafeModel}_Step4_Verify.md"
 
 if ($RestorePackage) {
-    Write-Host "[*] Đang khôi phục gói: $RestorePackage ..." -ForegroundColor Cyan
+    Write-Host "[*] Restoring package: $RestorePackage ..." -ForegroundColor Cyan
     $out = (& adb @adbArgs shell "cmd package install-existing $RestorePackage" 2>&1) -join " "
     Write-Host "    -> $out" -ForegroundColor Green
     $RestoreMd = @(
-        "# Báo cáo Khôi phục Gói (Step 4 - Restore Single Package)"
-        "- **Thời gian:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        "- **Thiết bị:** $Model"
-        "- **Gói khôi phục:** ``$RestorePackage``"
-        "- **Kết quả:** ``$out``"
+        "# Google Pixel Package Restore Report (Step 4)"
+        "- **Time:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        "- **Device:** $Model"
+        "- **Package:** ``$RestorePackage``"
+        "- **Result:** ``$out``"
     ) -join "`r`n"
     $RestoreMd | Set-Content -Path $ReportFile -Encoding UTF8
     try { $RestoreMd | Set-Clipboard } catch {}
-    Write-Host "[OK] Đã lưu báo cáo vào $ReportFile và copy vào Clipboard!" -ForegroundColor Yellow
+    Write-Host "[OK] Saved report to $ReportFile and copied to Clipboard!" -ForegroundColor Yellow
     exit 0
 }
 
 if ($RestoreAll) {
     Write-Host "==========================================================" -ForegroundColor Yellow
-    Write-Host "   KHÔI PHỤC TOÀN BỘ GÓI & CÀI ĐẶT GOOGLE PIXEL VỀ GỐC    " -ForegroundColor Yellow
+    Write-Host "   RESTORING ALL PACKAGES & SETTINGS ON GOOGLE PIXEL      " -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Yellow
 
     $all = (& adb @adbArgs shell "pm list packages -u") | ForEach-Object { $_.Replace("package:", "").Trim() } | Where-Object { $_ }
@@ -69,12 +68,12 @@ if ($RestoreAll) {
     $curSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$cur)
     $uninstalled = @($all | Where-Object { -not $curSet.Contains($_) } | Sort-Object)
 
-    Write-Host "Tổng số gói đã gỡ tìm thấy: $($uninstalled.Count)" -ForegroundColor Cyan
+    Write-Host "Total uninstalled packages found: $($uninstalled.Count)" -ForegroundColor Cyan
     $idx = 0
     $RestoredLogs = @()
     foreach ($pkg in $uninstalled) {
         $idx++
-        Write-Host "[$idx/$($uninstalled.Count)] Đang khôi phục $pkg... " -NoNewline
+        Write-Host "[$idx/$($uninstalled.Count)] Restoring $pkg... " -NoNewline
         $out = (& adb @adbArgs shell "cmd package install-existing $pkg" 2>&1) -join " "
         if ($out -match "installed for user") {
             Write-Host "OK" -ForegroundColor Green
@@ -85,7 +84,7 @@ if ($RestoreAll) {
         }
     }
 
-    Write-Host "`n[*] Đang đưa cài đặt Animation & Modem về mặc định..." -ForegroundColor Cyan
+    Write-Host "`n[*] Resetting Animation & Modem settings to default..." -ForegroundColor Cyan
     & adb @adbArgs shell "settings put global window_animation_scale 1.0" 2>$null
     & adb @adbArgs shell "settings put global transition_animation_scale 1.0" 2>$null
     & adb @adbArgs shell "settings put global animator_duration_scale 1.0" 2>$null
@@ -94,23 +93,24 @@ if ($RestoreAll) {
     & adb @adbArgs shell "settings put global ble_scan_always_enabled 1" 2>$null
     & adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
 
+    $RestoreBody = if ($RestoredLogs.Count -gt 0) { $RestoredLogs -join "`r`n" } else { "- No uninstalled packages found." }
     $RestoreAllMd = @(
-        "# Báo cáo Khôi phục Toàn bộ Google Pixel (Step 4 - Restore All)"
-        "- **Thời gian:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        "- **Thiết bị:** $Model"
-        "- **Tổng số gói đã khôi phục:** $($uninstalled.Count)"
+        "# Google Pixel Full Restore Report (Step 4 - Restore All)"
+        "- **Time:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        "- **Device:** $Model"
+        "- **Total Restored:** $($uninstalled.Count)"
         ""
-        "## Danh sách Gói đã xử lý"
-        $(if ($RestoredLogs.Count -gt 0) { $RestoredLogs -join "`r`n" } else { "- Không có gói nào bị gỡ." })
+        "## Restored Packages"
+        $RestoreBody
     ) -join "`r`n"
     $RestoreAllMd | Set-Content -Path $ReportFile -Encoding UTF8
     try { $RestoreAllMd | Set-Clipboard } catch {}
-    Write-Host "==> Hoàn tất khôi phục! Đã xuất file $ReportFile và copy vào Clipboard." -ForegroundColor Green
+    Write-Host "==> Restore complete! Exported $ReportFile and copied to Clipboard." -ForegroundColor Green
     exit 0
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   BƯỚC 4: KIỂM TRA KẾT QUẢ SAU KHI TỐI ƯU GOOGLE PIXEL   " -ForegroundColor Cyan
+Write-Host "   STEP 4: VERIFY GOOGLE PIXEL POST-OPTIMIZATION STATUS   " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $EnabledCnt  = ((& adb @adbArgs shell pm list packages -e) | Measure-Object).Count
@@ -124,31 +124,31 @@ $BleScan     = ((& adb @adbArgs shell "settings get global ble_scan_always_enabl
 $AnimWin     = ((& adb @adbArgs shell "settings get global window_animation_scale") -join "").Trim()
 
 $Summary = @(
-    "# Báo cáo Kiểm tra Sau Tối ưu Google Pixel (Step 4 - Verify)"
+    "# Google Pixel Post-Optimization Verification (Step 4 - Verify)"
     ""
-    "- **Thời gian:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-    "- **Thiết bị:** $Model"
-    "- **Tổng số gói đang bật:** ``$EnabledCnt`` (Đang tắt: ``$DisabledCnt``)"
+    "- **Time:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    "- **Device:** $Model"
+    "- **Active Packages:** ``$EnabledCnt`` (Disabled: ``$DisabledCnt``)"
     ""
-    "## 1. Trạng thái Các Cài đặt Tối ưu"
-    "| Thông số | Giá trị hiện tại | Chuẩn tối ưu |"
+    "## 1. Optimization Settings Status"
+    "| Setting Key | Current Value | Target Value |"
     "| :--- | :---: | :---: |"
     "| ``mobile_data_always_on`` | ``$MobAlwaysOn`` | ``0`` |"
     "| ``wifi_scan_always_enabled`` | ``$WifiScan`` | ``0`` |"
     "| ``ble_scan_always_enabled`` | ``$BleScan`` | ``0`` |"
     "| ``window_animation_scale`` | ``$AnimWin`` | ``0.5`` |"
     ""
-    "## 2. Bộ nhớ Lưu trữ (/data)"
+    "## 2. Internal Storage (/data)"
     "``````text"
     $StorageDf
     "``````"
     ""
-    "## 3. Dung lượng RAM & Swap Sau Tối ưu"
+    "## 3. RAM & Swap Info"
     "``````text"
     $MemInfo
     "``````"
     ""
-    "## 4. Top Tiến trình RAM Hiện tại"
+    "## 4. Top RAM Processes"
     "``````text"
     $TopMem
     "``````"
@@ -158,8 +158,8 @@ $Summary | Set-Content -Path $ReportFile -Encoding UTF8
 Write-Host $Summary -ForegroundColor Green
 try {
     $Summary | Set-Clipboard
-    Write-Host "`n[OK] ĐÃ COPY BÁO CÁO BƯỚC 4 VÀO CLIPBOARD & XUẤT FILE .MD RA DESKTOP!" -ForegroundColor Green
+    Write-Host "`n[OK] COPIED STEP 4 REPORT TO CLIPBOARD & EXPORTED .MD TO DESKTOP!" -ForegroundColor Green
 } catch {
-    Write-Host "`n[OK] ĐÃ XUẤT FILE .MD BƯỚC 4 RA DESKTOP!" -ForegroundColor Green
+    Write-Host "`n[OK] EXPORTED STEP 4 .MD REPORT TO DESKTOP!" -ForegroundColor Green
 }
-Write-Host "File Markdown: $ReportFile" -ForegroundColor Yellow
+Write-Host "Markdown Report: $ReportFile" -ForegroundColor Yellow

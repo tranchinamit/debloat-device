@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-  [BƯỚC 3 - TỐI ƯU PIN MODEM TENSOR, ĐỘ MƯỢT & ĐA NHIỆM CHO GOOGLE PIXEL]
-  Thực hiện các tinh chỉnh chuyên sâu cho dòng Google Pixel:
-  1. Tắt giữ sóng 4G/5G ngầm khi đang bắt Wi-Fi (mobile_data_always_on = 0) -> giảm nóng modem Tensor & chống tụt pin qua đêm.
-  2. Tắt quét Wi-Fi & Bluetooth BLE ngầm 24/7.
-  3. Giảm tỷ lệ Animation xuống 0.5x giúp vuốt chạm phản hồi tức thì.
-  4. Mở khóa giới hạn đa nhiệm RAM lớn của Pixel (xóa giới hạn max_cached_processes nếu có).
-  5. Dọn bộ nhớ đệm (trim-caches) & Biên dịch tối ưu hóa mã ứng dụng AOT (bg-dexopt-job).
-  Tự động xuất kết quả ra file Markdown (.md) ngoài Desktop VÀ copy vào Clipboard.
+  [STEP 3 - OPTIMIZE MODEM, BATTERY & SMOOTHNESS FOR GOOGLE PIXEL]
+  Applies safe system optimizations for Google Pixel:
+  1. Disables background mobile data while on Wi-Fi (mobile_data_always_on = 0) to reduce modem heat & idle drain.
+  2. Disables 24/7 background Wi-Fi & BLE scanning.
+  3. Sets Animation scales to 0.5x for snappy UI response.
+  4. Unlocks full RAM multitasking for Pixel (removes artificial max_cached_processes caps).
+  5. Trims system caches & runs AOT compilation (bg-dexopt-job).
+  Exports .md report to Desktop AND copies to Clipboard.
 
 .USAGE
-  Chạy đầy đủ:
+  Full optimization:
     powershell -ExecutionPolicy Bypass -File .\step3_optimize_pixel.ps1
 
-  Chạy nhanh (bỏ qua bước biên dịch AOT 60 giây):
+  Fast mode (skip 60s AOT dexopt compilation):
     powershell -ExecutionPolicy Bypass -File .\step3_optimize_pixel.ps1 -SkipDexopt
 #>
 
@@ -25,13 +25,12 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     if (Test-Path "C:\adb_work\platform-tools\adb.exe") {
         $env:Path = "C:\adb_work\platform-tools;" + $env:Path
     } else {
-        Write-Host "[!] Chưa có ADB. Hãy chạy step1_scan_pixel.ps1 trước!" -ForegroundColor Red
+        Write-Host "[!] ADB not found. Run step1_scan_pixel.ps1 first!" -ForegroundColor Red
         exit 1
     }
 }
@@ -44,83 +43,80 @@ $SafeModel  = if ($Model) { $Model -replace '\s+', '_' } else { "Device" }
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
 $ReportFile = Join-Path $DesktopDir "Pixel_${SafeModel}_Step3_Optimize.md"
 
-# Đọc thông số trước khi tối ưu
 $BeforeAnim  = ((& adb @adbArgs shell "settings get global window_animation_scale") -join "").Trim()
 $BeforeMob   = ((& adb @adbArgs shell "settings get global mobile_data_always_on") -join "").Trim()
 $BeforeWifi  = ((& adb @adbArgs shell "settings get global wifi_scan_always_enabled") -join "").Trim()
 $BeforeBle   = ((& adb @adbArgs shell "settings get global ble_scan_always_enabled") -join "").Trim()
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   BƯỚC 3: TỐI ƯU PIN MODEM TENSOR & ĐỘ MƯỢT GOOGLE PIXEL " -ForegroundColor Cyan
+Write-Host "   STEP 3: GOOGLE PIXEL MODEM, BATTERY & UI OPTIMIZATION  " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# 1. Tối ưu tốc độ Animation
-Write-Host "`n[1/5] Đặt tốc độ hiệu ứng chuyển cảnh (Animation Scale = ${AnimationScale}x)..." -ForegroundColor White
+# 1. Animation Scale
+Write-Host "`n[1/5] Setting UI Animation Scale to ${AnimationScale}x..." -ForegroundColor White
 & adb @adbArgs shell "settings put global window_animation_scale $AnimationScale" 2>$null
 & adb @adbArgs shell "settings put global transition_animation_scale $AnimationScale" 2>$null
 & adb @adbArgs shell "settings put global animator_duration_scale $AnimationScale" 2>$null
-Write-Host "      -> Đã đặt Animation = ${AnimationScale}x thành công!" -ForegroundColor Green
+Write-Host "      -> Animation Scale set to ${AnimationScale}x!" -ForegroundColor Green
 
-# 2. Tối ưu Modem Tensor & Quét ngầm
+# 2. Modem & Background Scanning
 if (-not $SkipModemTune) {
-    Write-Host "`n[2/5] Tối ưu Modem Tensor & Tắt quét vị trí ngầm 24/7..." -ForegroundColor White
+    Write-Host "`n[2/5] Optimizing Modem & Disabling 24/7 Background Scanning..." -ForegroundColor White
     & adb @adbArgs shell "settings put global mobile_data_always_on 0" 2>$null
     & adb @adbArgs shell "settings put global wifi_scan_always_enabled 0" 2>$null
     & adb @adbArgs shell "settings put global ble_scan_always_enabled 0" 2>$null
-    Write-Host "      -> Đã tắt giữ mạng 4G/5G chạy ngầm khi bắt Wi-Fi (mobile_data_always_on = 0)" -ForegroundColor Green
-    Write-Host "      -> Đã tắt dò Wi-Fi & Bluetooth BLE ngầm 24/7 (wifi/ble_scan_always_enabled = 0)" -ForegroundColor Green
+    Write-Host "      -> Disabled mobile_data_always_on (0) & wifi/ble_scan_always_enabled (0)!" -ForegroundColor Green
 }
 
-# 3. Tối ưu đa nhiệm RAM
-Write-Host "`n[3/5] Mở khóa giới hạn đa nhiệm RAM trên Google Pixel..." -ForegroundColor White
+# 3. RAM Multitasking
+Write-Host "`n[3/5] Unlocking native RAM multitasking limit on Pixel..." -ForegroundColor White
 & adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
-Write-Host "      -> Đã mở khóa bộ quản lý đa nhiệm gốc cho RAM lớn của Pixel!" -ForegroundColor Green
+Write-Host "      -> Unlocked native RAM manager!" -ForegroundColor Green
 
-# 4. Dọn bộ nhớ đệm ứng dụng
-Write-Host "`n[4/5] Dọn bộ nhớ đệm hệ thống (trim-caches)..." -ForegroundColor White
+# 4. Trim Caches
+Write-Host "`n[4/5] Trimming system caches (pm trim-caches)..." -ForegroundColor White
 & adb @adbArgs shell "pm trim-caches 999999999999999999" 2>$null
-Write-Host "      -> Đã giải phóng cache rác!" -ForegroundColor Green
+Write-Host "      -> System caches trimmed!" -ForegroundColor Green
 
-# 5. Biên dịch AOT
-$DexoptStatus = "Đã bỏ qua (-SkipDexopt)"
+# 5. AOT Dexopt
+$DexoptStatus = "Skipped (-SkipDexopt)"
 if (-not $SkipDexopt) {
-    Write-Host "`n[5/5] Đang chạy tối ưu hóa mã ứng dụng AOT (bg-dexopt-job, mất khoảng 30-90 giây)..." -ForegroundColor Yellow
+    Write-Host "`n[5/5] Running AOT app optimization (bg-dexopt-job, takes ~30-90s)..." -ForegroundColor Yellow
     & adb @adbArgs shell "cmd package bg-dexopt-job" | Out-Null
-    Write-Host "      -> Hoàn tất biên dịch AOT!" -ForegroundColor Green
-    $DexoptStatus = "Hoàn tất (bg-dexopt-job)"
+    Write-Host "      -> AOT compilation completed!" -ForegroundColor Green
+    $DexoptStatus = "Completed (bg-dexopt-job)"
 } else {
-    Write-Host "`n[5/5] Đã bỏ qua bước bg-dexopt-job theo tùy chọn -SkipDexopt." -ForegroundColor DarkGray
+    Write-Host "`n[5/5] Skipped bg-dexopt-job as requested." -ForegroundColor DarkGray
 }
 
-# Đọc thông số sau khi tối ưu
 $AfterAnim  = ((& adb @adbArgs shell "settings get global window_animation_scale") -join "").Trim()
 $AfterMob   = ((& adb @adbArgs shell "settings get global mobile_data_always_on") -join "").Trim()
 $AfterWifi  = ((& adb @adbArgs shell "settings get global wifi_scan_always_enabled") -join "").Trim()
 $AfterBle   = ((& adb @adbArgs shell "settings get global ble_scan_always_enabled") -join "").Trim()
 
 $MdReport = @(
-    "# Báo cáo Tối ưu Hóa Hệ thống Google Pixel (Step 3 - Optimize)"
+    "# Google Pixel Optimization Report (Step 3 - Optimize)"
     ""
-    "- **Thời gian:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-    "- **Thiết bị:** $Model"
+    "- **Time:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    "- **Device:** $Model"
     ""
-    "## Bảng So sánh Thông số Trước & Sau Tối ưu"
-    "| Hạng mục | Trước | Sau | Tác dụng |"
+    "## Before vs. After Settings"
+    "| Setting | Before | After | Purpose |"
     "| :--- | :---: | :---: | :--- |"
-    "| ``window_animation_scale`` | ``$BeforeAnim`` | ``$AfterAnim`` | Tăng tốc độ phản hồi chuyển cảnh giao diện |"
-    "| ``mobile_data_always_on`` | ``$BeforeMob`` | ``$AfterMob`` | Tắt giữ sóng 4G/5G ngầm khi đang bắt Wi-Fi (Mát modem Tensor & giảm hao pin chờ) |"
-    "| ``wifi_scan_always_enabled`` | ``$BeforeWifi`` | ``$AfterWifi`` | Tắt dò Wi-Fi ngầm 24/7 |"
-    "| ``ble_scan_always_enabled`` | ``$BeforeBle`` | ``$AfterBle`` | Tắt dò Bluetooth BLE ngầm 24/7 |"
-    "| ``max_cached_processes`` | - | ``Default (Unlocked)`` | Mở khóa toàn bộ dung lượng RAM lớn của Pixel |"
-    "| ``pm trim-caches`` | - | ``Đã dọn sạch`` | Giải phóng bộ nhớ đệm hệ thống |"
-    "| ``bg-dexopt-job`` (AOT) | - | ``$DexoptStatus`` | Biên dịch trước mã ứng dụng giúp mở app mượt hơn |"
+    "| ``window_animation_scale`` | ``$BeforeAnim`` | ``$AfterAnim`` | Faster UI transitions (0.5x) |"
+    "| ``mobile_data_always_on`` | ``$BeforeMob`` | ``$AfterMob`` | Turn off idle 4G/5G drain while on Wi-Fi |"
+    "| ``wifi_scan_always_enabled`` | ``$BeforeWifi`` | ``$AfterWifi`` | Stop 24/7 background Wi-Fi scanning |"
+    "| ``ble_scan_always_enabled`` | ``$BeforeBle`` | ``$AfterBle`` | Stop 24/7 background Bluetooth BLE scanning |"
+    "| ``max_cached_processes`` | - | ``Default (Unlocked)`` | Full RAM multitasking for Pixel |"
+    "| ``pm trim-caches`` | - | ``Trimmed`` | Free temporary system caches |"
+    "| ``bg-dexopt-job`` (AOT) | - | ``$DexoptStatus`` | Pre-compile app code for faster launch |"
 ) -join "`r`n"
 
 $MdReport | Set-Content -Path $ReportFile -Encoding UTF8
 try {
     $MdReport | Set-Clipboard
-    Write-Host "`n[OK] ĐÃ COPY KẾT QUẢ BƯỚC 3 VÀO CLIPBOARD & XUẤT FILE .MD RA DESKTOP!" -ForegroundColor Green
+    Write-Host "`n[OK] COPIED STEP 3 REPORT TO CLIPBOARD & EXPORTED .MD TO DESKTOP!" -ForegroundColor Green
 } catch {
-    Write-Host "`n[OK] ĐÃ XUẤT FILE .MD BƯỚC 3 RA DESKTOP!" -ForegroundColor Green
+    Write-Host "`n[OK] EXPORTED STEP 3 .MD REPORT TO DESKTOP!" -ForegroundColor Green
 }
-Write-Host "File Markdown: $ReportFile" -ForegroundColor Yellow
+Write-Host "Markdown Report: $ReportFile" -ForegroundColor Yellow

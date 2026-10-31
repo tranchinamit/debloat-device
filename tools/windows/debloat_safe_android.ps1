@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-  All-in-One Android Safe Debloat & Optimization Script for Windows (Remote-friendly).
+  All-in-One Android Safe Debloat & Optimization Script for Windows.
   Automatically downloads Google Platform-Tools (adb.exe) if missing, backs up installed packages,
-  removes safe bloatware (Xiaomi, Samsung, OPPO/Realme, Facebook, Microsoft, Google Telemetry),
-  and applies smoothness/RAM optimizations.
+  removes safe bloatware (Xiaomi, Samsung, OPPO/Realme, Google Pixel, Facebook, Microsoft),
+  and applies smoothness/RAM/Modem optimizations.
 
 .USAGE
   Open PowerShell and run:
@@ -16,18 +16,17 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   ANDROID SAFE DEBLOAT & OPTIMIZER (WINDOWS POWERSHELL)  " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# ---------- 1. Chuẩn bị ADB (Tự tải nếu máy khách chưa có) ----------
+# ---------- 1. Prepare ADB (Auto-download if missing) ----------
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     $WorkDir = "C:\adb_work"
     $AdbExe = "$WorkDir\platform-tools\adb.exe"
     if (-not (Test-Path $AdbExe)) {
-        Write-Host "`n[*] Máy chưa có ADB. Đang tải Android Platform-Tools (~12MB) từ Google..." -ForegroundColor Yellow
+        Write-Host "`n[*] ADB not found. Downloading Google Platform-Tools (~12MB)..." -ForegroundColor Yellow
         New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
         $ZipPath = "$WorkDir\platform-tools.zip"
         Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $ZipPath
@@ -40,15 +39,15 @@ if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
 $adbArgs = @()
 if ($Device) { $adbArgs = @("-s", $Device) }
 
-Write-Host "`n[*] Đang kiểm tra kết nối ADB..." -ForegroundColor Cyan
+Write-Host "`n[*] Checking ADB connection..." -ForegroundColor Cyan
 $devices = (& adb @adbArgs devices) | Select-Object -Skip 1 | Where-Object { $_ -match "\tdevice$" }
 if (-not $devices) {
-    Write-Host "[!] Không tìm thấy điện thoại Android nào đang kết nối ở trạng thái 'device'!" -ForegroundColor Red
-    Write-Host "    -> Hãy kiểm tra cáp USB, bật 'Gỡ lỗi USB (USB Debugging)' và bấm 'Cho phép (Allow)' trên màn hình điện thoại." -ForegroundColor Yellow
+    Write-Host "[!] No connected Android device found in 'device' state!" -ForegroundColor Red
+    Write-Host "    -> Check USB cable / Wireless Debugging, enable 'USB Debugging' and tap 'Allow' on phone." -ForegroundColor Yellow
     exit 1
 }
 
-# ---------- 2. Thu thập thông tin & Backup danh sách Package gốc ----------
+# ---------- 2. Collect Device Info & Backup Package List ----------
 $Brand = ((& adb @adbArgs shell getprop ro.product.brand) -join "").Trim()
 $BrandLower = $Brand.ToLower()
 $Model = ((& adb @adbArgs shell getprop ro.product.model) -join "").Trim() -replace '\s+', '_'
@@ -65,10 +64,9 @@ $InstalledRaw = (& adb @adbArgs shell pm list packages) | ForEach-Object { $_.Re
 $InstalledSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$InstalledRaw)
 
 $InstalledRaw | Set-Content -Path $BackupFile -Encoding UTF8
-Write-Host "[+] Thiết bị : $Brand $Model (Android $AndroidVer)" -ForegroundColor Green
-Write-Host "[+] Đã lưu Backup ($($InstalledRaw.Count) gói) tại: $BackupFile" -ForegroundColor Green
+Write-Host "[+] Device : $Brand $Model (Android $AndroidVer)" -ForegroundColor Green
+Write-Host "[+] Saved Backup ($($InstalledRaw.Count) packages) to: $BackupFile" -ForegroundColor Green
 
-# Copy thông tin vào Clipboard để tiện Paste về máy chủ Antigravity
 try {
     @(
         "=== DEVICE INFO ==="
@@ -78,126 +76,125 @@ try {
         "=== INSTALLED PACKAGES ($($InstalledRaw.Count)) ==="
         $InstalledRaw
     ) | Set-Clipboard
-    Write-Host "[+] Đã copy thông tin máy & danh sách package vào Clipboard!" -ForegroundColor DarkCyan
+    Write-Host "[+] Copied device info & package list to Clipboard!" -ForegroundColor DarkCyan
 } catch {}
 
-# ---------- 3. Danh sách gói Bloatware An Toàn 100% ----------
-# TUYỆT ĐỐI KHÔNG CHỨA: overlay, GMS Core, Dialer/Contacts/SMS gốc, driver phần cứng Qualcomm/MTK.
+# ---------- 3. 100% Safe Debloat Package List ----------
 $SafeDebloatPackages = @(
-    # 1. Quảng cáo, theo dõi, thu thập dữ liệu ngầm của Xiaomi / Redmi / POCO
-    @{ Pkg = "com.miui.msa.global"; Desc = "Xiaomi System Ads (Quảng cáo hệ thống)" },
-    @{ Pkg = "com.miui.analytics"; Desc = "Xiaomi Analytics (Thu thập & gửi dữ liệu ngầm)" },
-    @{ Pkg = "com.miui.daemon"; Desc = "Xiaomi Daemon (Tiến trình thu thập nền)" },
-    @{ Pkg = "com.miui.bugreport"; Desc = "Báo cáo lỗi Xiaomi ngầm" },
-    @{ Pkg = "com.miui.miservice"; Desc = "Dịch vụ phản hồi Xiaomi" },
-    @{ Pkg = "com.miui.misightservice"; Desc = "Dịch vụ theo dõi trải nghiệm MiSight" },
-    @{ Pkg = "com.mi.appfinder"; Desc = "App Finder / Gợi ý app rác" },
-    @{ Pkg = "com.mi.globalminusscreen"; Desc = "Màn hình -1 App Vault" },
-    @{ Pkg = "com.xiaomi.mipicks"; Desc = "GetApps (Kho app Xiaomi spam thông báo)" },
-    @{ Pkg = "com.miui.yellowpage"; Desc = "Trang vàng danh bạ Xiaomi" },
-    @{ Pkg = "com.xiaomi.payment"; Desc = "Mi Pay (Dịch vụ thanh toán nội địa)" },
+    # 1. Xiaomi / Redmi / POCO Ads & Telemetry
+    @{ Pkg = "com.miui.msa.global"; Desc = "Xiaomi System Ads" },
+    @{ Pkg = "com.miui.analytics"; Desc = "Xiaomi Analytics Telemetry" },
+    @{ Pkg = "com.miui.daemon"; Desc = "Xiaomi Daemon Telemetry" },
+    @{ Pkg = "com.miui.bugreport"; Desc = "Xiaomi Bug Report" },
+    @{ Pkg = "com.miui.miservice"; Desc = "Xiaomi Feedback Service" },
+    @{ Pkg = "com.miui.misightservice"; Desc = "Xiaomi MiSight Telemetry" },
+    @{ Pkg = "com.mi.appfinder"; Desc = "Xiaomi App Finder" },
+    @{ Pkg = "com.mi.globalminusscreen"; Desc = "Xiaomi App Vault (-1 Screen)" },
+    @{ Pkg = "com.xiaomi.mipicks"; Desc = "Xiaomi GetApps Store" },
+    @{ Pkg = "com.miui.yellowpage"; Desc = "Xiaomi Yellow Pages" },
+    @{ Pkg = "com.xiaomi.payment"; Desc = "Xiaomi Mi Pay" },
     @{ Pkg = "com.xiaomi.glgm"; Desc = "Xiaomi Game Center" },
-    @{ Pkg = "com.xiaomi.barrage"; Desc = "Chữ chạy màn hình Xiaomi" },
-    @{ Pkg = "com.xiaomi.aiasst.vision"; Desc = "AI Vision Xiaomi" },
-    @{ Pkg = "com.miui.thirdappassistant"; Desc = "Trợ lý ứng dụng bên thứ 3" },
-    @{ Pkg = "com.miui.phrase"; Desc = "Cụm từ mẫu bàn phím Xiaomi" },
-    @{ Pkg = "com.mi.globalbrowser"; Desc = "Mi Browser (Trình duyệt nhiều quảng cáo)" },
-    @{ Pkg = "com.miui.videoplayer"; Desc = "Mi Video (Trình phát video nhiều quảng cáo)" },
-    @{ Pkg = "com.miui.player"; Desc = "Mi Music (Trình nghe nhạc nhiều quảng cáo)" },
-    @{ Pkg = "com.miui.guardprovider"; Desc = "Bộ quét virus ngầm Avast/Tencent (ngốn ~120MB RAM)" },
-    @{ Pkg = "com.xiaomi.aicr"; Desc = "Xiaomi AI Engine ngầm (nặng máy)" },
-    @{ Pkg = "com.xiaomi.ugd"; Desc = "Dịch vụ ngầm Xiaomi UGD" },
-    @{ Pkg = "com.xiaomi.discover"; Desc = "Trình gợi ý cập nhật ứng dụng hệ thống Xiaomi" },
-    @{ Pkg = "com.miui.virtualsim"; Desc = "Mi Roaming (SIM ảo Xiaomi)" },
-    @{ Pkg = "com.miui.vsimcore"; Desc = "Virtual SIM Core" },
+    @{ Pkg = "com.xiaomi.barrage"; Desc = "Xiaomi Bullet Screen" },
+    @{ Pkg = "com.xiaomi.aiasst.vision"; Desc = "Xiaomi AI Vision" },
+    @{ Pkg = "com.miui.thirdappassistant"; Desc = "Xiaomi Third App Assistant" },
+    @{ Pkg = "com.miui.phrase"; Desc = "Xiaomi Frequent Phrases" },
+    @{ Pkg = "com.mi.globalbrowser"; Desc = "Xiaomi Mi Browser" },
+    @{ Pkg = "com.miui.videoplayer"; Desc = "Xiaomi Mi Video" },
+    @{ Pkg = "com.miui.player"; Desc = "Xiaomi Mi Music" },
+    @{ Pkg = "com.miui.guardprovider"; Desc = "Xiaomi GuardProvider (~120MB RAM)" },
+    @{ Pkg = "com.xiaomi.aicr"; Desc = "Xiaomi AI Engine" },
+    @{ Pkg = "com.xiaomi.ugd"; Desc = "Xiaomi UGD Service" },
+    @{ Pkg = "com.xiaomi.discover"; Desc = "Xiaomi System App Updater Ads" },
+    @{ Pkg = "com.miui.virtualsim"; Desc = "Xiaomi Mi Roaming" },
+    @{ Pkg = "com.miui.vsimcore"; Desc = "Xiaomi Virtual SIM Core" },
 
-    # 2. Samsung One UI Bloatware (Bixby, AR Zone, Game Launcher, Quảng cáo/Theo dõi)
-    @{ Pkg = "com.aura.oobe.samsung.gl"; Desc = "AppCloud / IronSource (Bloatware tự tải app quảng cáo ngầm)" },
-    @{ Pkg = "com.samsung.android.game.gos"; Desc = "Game Optimizing Service (GOS - bóp hiệu năng & chạy ngầm)" },
-    @{ Pkg = "com.samsung.android.bixby.agent"; Desc = "Trợ lý ảo Bixby Voice" },
-    @{ Pkg = "com.samsung.android.bixby.wakeup"; Desc = "Nhận diện giọng nói đánh thức Bixby" },
+    # 2. Samsung One UI Bloatware
+    @{ Pkg = "com.aura.oobe.samsung.gl"; Desc = "Samsung AppCloud / IronSource Ad Installer" },
+    @{ Pkg = "com.samsung.android.game.gos"; Desc = "Samsung Game Optimizing Service (GOS)" },
+    @{ Pkg = "com.samsung.android.bixby.agent"; Desc = "Bixby Voice Assistant" },
+    @{ Pkg = "com.samsung.android.bixby.wakeup"; Desc = "Bixby Voice Wakeup" },
     @{ Pkg = "com.samsung.android.visionintelligence"; Desc = "Bixby Vision" },
-    @{ Pkg = "com.samsung.android.bixby.service"; Desc = "Dịch vụ chạy ngầm Bixby" },
-    @{ Pkg = "com.samsung.android.app.settings.bixby"; Desc = "Cài đặt Bixby" },
-    @{ Pkg = "com.samsung.android.app.spage"; Desc = "Samsung Free / Samsung Daily (Màn hình -1)" },
-    @{ Pkg = "com.samsung.android.ardrawing"; Desc = "AR Doodle" },
-    @{ Pkg = "com.samsung.android.arzone"; Desc = "AR Zone" },
-    @{ Pkg = "com.samsung.android.aremoji"; Desc = "AR Emoji" },
-    @{ Pkg = "com.samsung.android.aremojieditor"; Desc = "AR Emoji Editor" },
-    @{ Pkg = "com.sec.android.mimage.avatarstickers"; Desc = "Sticker AR Emoji" },
-    @{ Pkg = "com.samsung.android.game.gamehome"; Desc = "Samsung Game Launcher (Quảng cáo game)" },
-    @{ Pkg = "com.samsung.android.game.gametools"; Desc = "Game Booster / Game Tools" },
-    @{ Pkg = "com.samsung.android.app.tips"; Desc = "Mẹo sử dụng Samsung (Tips)" },
+    @{ Pkg = "com.samsung.android.bixby.service"; Desc = "Bixby Background Service" },
+    @{ Pkg = "com.samsung.android.app.settings.bixby"; Desc = "Bixby Settings" },
+    @{ Pkg = "com.samsung.android.app.spage"; Desc = "Samsung Free / Daily (-1 Screen)" },
+    @{ Pkg = "com.samsung.android.ardrawing"; Desc = "Samsung AR Doodle" },
+    @{ Pkg = "com.samsung.android.arzone"; Desc = "Samsung AR Zone" },
+    @{ Pkg = "com.samsung.android.aremoji"; Desc = "Samsung AR Emoji" },
+    @{ Pkg = "com.samsung.android.aremojieditor"; Desc = "Samsung AR Emoji Editor" },
+    @{ Pkg = "com.sec.android.mimage.avatarstickers"; Desc = "Samsung Avatar Stickers" },
+    @{ Pkg = "com.samsung.android.game.gamehome"; Desc = "Samsung Game Launcher" },
+    @{ Pkg = "com.samsung.android.game.gametools"; Desc = "Samsung Game Booster" },
+    @{ Pkg = "com.samsung.android.app.tips"; Desc = "Samsung Tips" },
     @{ Pkg = "com.samsung.android.kidsinstaller"; Desc = "Samsung Kids Installer" },
-    @{ Pkg = "com.samsung.android.rubin.app"; Desc = "Customization Service (Theo dõi thói quen ngầm)" },
+    @{ Pkg = "com.samsung.android.rubin.app"; Desc = "Samsung Customization Tracking Service" },
 
-    # 3. OPPO / Realme / OnePlus (ColorOS) Bloatware
-    @{ Pkg = "com.heytap.browser"; Desc = "Trình duyệt HeyTap (nhiều quảng cáo)" },
-    @{ Pkg = "com.heytap.market"; Desc = "Chợ ứng dụng App Market (spam thông báo)" },
-    @{ Pkg = "com.heytap.themestore"; Desc = "Theme Store quảng cáo" },
-    @{ Pkg = "com.nearme.statistics.rom"; Desc = "Thu thập dữ liệu người dùng ColorOS" },
-    @{ Pkg = "com.coloros.gamespace"; Desc = "Game Space quảng cáo" },
+    # 3. OPPO / Realme / OnePlus (ColorOS)
+    @{ Pkg = "com.heytap.browser"; Desc = "HeyTap Browser" },
+    @{ Pkg = "com.heytap.market"; Desc = "HeyTap App Market" },
+    @{ Pkg = "com.heytap.themestore"; Desc = "HeyTap Theme Store" },
+    @{ Pkg = "com.nearme.statistics.rom"; Desc = "ColorOS User Statistics Telemetry" },
+    @{ Pkg = "com.coloros.gamespace"; Desc = "ColorOS Game Space" },
 
-    # 4. Facebook & Microsoft chạy ngầm
-    @{ Pkg = "com.facebook.services"; Desc = "Facebook Services chạy ngầm" },
+    # 4. Facebook & Microsoft Preload Services
+    @{ Pkg = "com.facebook.services"; Desc = "Facebook Background Services" },
     @{ Pkg = "com.facebook.system"; Desc = "Facebook System Installer" },
     @{ Pkg = "com.facebook.appmanager"; Desc = "Facebook App Manager" },
-    @{ Pkg = "com.microsoftsdk.crossdeviceservicebroker"; Desc = "Microsoft Link to Windows Broker" },
-    @{ Pkg = "com.microsoft.appmanager"; Desc = "Microsoft Phone Link chạy ngầm" },
+    @{ Pkg = "com.microsoftsdk.crossdeviceservicebroker"; Desc = "Microsoft Cross Device Broker" },
+    @{ Pkg = "com.microsoft.appmanager"; Desc = "Microsoft Phone Link Service" },
 
-    # 5. Google & Android Telemetry / Quảng cáo / Ngốn RAM ngầm
-    @{ Pkg = "com.google.android.feedback"; Desc = "Google Feedback (Gửi phản hồi lỗi ngầm)" },
+    # 5. Google & Android Telemetry / Ads
+    @{ Pkg = "com.google.android.feedback"; Desc = "Google Feedback" },
     @{ Pkg = "com.google.android.apps.subscriptions.red"; Desc = "Google One Promo" },
-    @{ Pkg = "com.google.android.apps.restore"; Desc = "Google Setup Restore (Chỉ dùng khi mới đập hộp)" },
+    @{ Pkg = "com.google.android.apps.restore"; Desc = "Google Setup Restore" },
     @{ Pkg = "com.google.android.apps.tachyon"; Desc = "Google Meet / Duo" },
     @{ Pkg = "com.google.android.videos"; Desc = "Google TV / Play Movies" },
-    @{ Pkg = "com.android.traceur"; Desc = "System Tracing dev log" },
+    @{ Pkg = "com.android.traceur"; Desc = "System Tracing Dev Logger" },
     @{ Pkg = "com.android.egg"; Desc = "Android Easter Egg" },
-    @{ Pkg = "com.android.providers.partnerbookmarks"; Desc = "Bookmarks đối tác quảng cáo" },
-    @{ Pkg = "com.google.android.as"; Desc = "Android System Intelligence (Gỡ trên máy RAM thấp; tự động GIỮ trên Google Pixel)" },
-    @{ Pkg = "com.google.android.as.oss"; Desc = "Private Compute Services (Tự động GIỮ trên Google Pixel)" },
-    @{ Pkg = "com.android.hotwordenrollment.okgoogle"; Desc = "Lắng nghe mic OK Google 24/7 (ngốn ~103MB RAM)" },
-    @{ Pkg = "com.android.hotwordenrollment.xgoogle"; Desc = "Lắng nghe mic Hey Google 24/7" },
-    @{ Pkg = "com.google.android.apps.wellbeing"; Desc = "Digital Wellbeing (Theo dõi thời gian dùng app gây khựng)" },
+    @{ Pkg = "com.android.providers.partnerbookmarks"; Desc = "Partner Bookmarks" },
+    @{ Pkg = "com.google.android.as"; Desc = "Android System Intelligence (Kept on Google Pixel)" },
+    @{ Pkg = "com.google.android.as.oss"; Desc = "Private Compute Services (Kept on Google Pixel)" },
+    @{ Pkg = "com.android.hotwordenrollment.okgoogle"; Desc = "OK Google Hotword Enrollment (~103MB RAM)" },
+    @{ Pkg = "com.android.hotwordenrollment.xgoogle"; Desc = "Hey Google Hotword Enrollment" },
+    @{ Pkg = "com.google.android.apps.wellbeing"; Desc = "Digital Wellbeing Tracker" },
     @{ Pkg = "com.google.mainline.telemetry"; Desc = "Google Mainline Telemetry" },
-    @{ Pkg = "com.google.mainline.adservices"; Desc = "Google Mainline AdServices (Quảng cáo)" },
+    @{ Pkg = "com.google.mainline.adservices"; Desc = "Google Mainline AdServices" },
     @{ Pkg = "com.google.android.adservices.api"; Desc = "Google AdServices API" },
-    @{ Pkg = "com.google.android.ondevicepersonalization.services"; Desc = "Cá nhân hóa quảng cáo trên thiết bị" },
-    @{ Pkg = "com.google.android.federatedcompute"; Desc = "Huấn luyện dữ liệu quảng cáo ngầm" },
-    @{ Pkg = "com.google.android.marvin.talkback"; Desc = "TalkBack (Đọc màn hình cho người khiếm thị)" },
+    @{ Pkg = "com.google.android.ondevicepersonalization.services"; Desc = "On-Device Ad Personalization" },
+    @{ Pkg = "com.google.android.federatedcompute"; Desc = "Federated Compute Ad Training" },
+    @{ Pkg = "com.google.android.marvin.talkback"; Desc = "TalkBack Accessibility" },
     @{ Pkg = "com.google.android.accessibility.switchaccess"; Desc = "Switch Access" },
 
-    # 6. Google Pixel Bloatware & Rác nhà mạng Mỹ/Nhật ẩn trong ROM Pixel
-    @{ Pkg = "com.google.android.apps.tips"; Desc = "Pixel Tips (Mẹo sử dụng Pixel chạy ngầm)" },
-    @{ Pkg = "com.google.android.apps.helprtc"; Desc = "Google Support / Pixel Troubleshooting video ngầm" },
+    # 6. Google Pixel Bloatware & Hidden US/JP Carrier Services
+    @{ Pkg = "com.google.android.apps.tips"; Desc = "Pixel Tips" },
+    @{ Pkg = "com.google.android.apps.helprtc"; Desc = "Pixel Support Video Share" },
     @{ Pkg = "com.google.android.apps.diagnosticstool"; Desc = "Pixel Diagnostics Tool" },
-    @{ Pkg = "com.android.retaildemo"; Desc = "Chế độ trưng bày cửa hàng (Retail Demo)" },
+    @{ Pkg = "com.android.retaildemo"; Desc = "Retail Demo Mode" },
     @{ Pkg = "com.google.android.retaildemo"; Desc = "Google Retail Demo" },
-    @{ Pkg = "com.verizon.mips.services"; Desc = "My Verizon Services (Rác nhà mạng Mỹ ngầm trong ROM Pixel)" },
-    @{ Pkg = "com.verizon.llkagent"; Desc = "Verizon LLK Agent (Rác nhà mạng Mỹ trong ROM Pixel)" },
+    @{ Pkg = "com.verizon.mips.services"; Desc = "My Verizon Services (Hidden Carrier Bloat)" },
+    @{ Pkg = "com.verizon.llkagent"; Desc = "Verizon LLK Agent" },
     @{ Pkg = "com.vzw.apnlib"; Desc = "Verizon APN Library" },
     @{ Pkg = "com.customermobile.preload.vzw"; Desc = "Verizon Preload Agent" },
-    @{ Pkg = "com.att.iqi"; Desc = "AT&T Carrier IQ Telemetry (Theo dõi ngầm nhà mạng AT&T)" },
-    @{ Pkg = "com.tmobile.pr.adapt"; Desc = "T-Mobile Adapt (Dịch vụ nhà mạng T-Mobile ngầm)" },
-    @{ Pkg = "com.sprint.ms.smf.services"; Desc = "Sprint Services (Dịch vụ nhà mạng Sprint ngầm)" },
+    @{ Pkg = "com.att.iqi"; Desc = "AT&T Carrier IQ Telemetry" },
+    @{ Pkg = "com.tmobile.pr.adapt"; Desc = "T-Mobile Adapt Service" },
+    @{ Pkg = "com.sprint.ms.smf.services"; Desc = "Sprint Carrier Services" },
     @{ Pkg = "com.sprint.ce.updater"; Desc = "Sprint Carrier Updater" },
-    @{ Pkg = "com.google.omadm.trigger"; Desc = "Cấu hình nhà mạng Mỹ OMA-DM Trigger" },
+    @{ Pkg = "com.google.omadm.trigger"; Desc = "US Carrier OMA-DM Trigger" },
 
-    # 7. Công cụ kiểm thử / cấu hình rác của nhà máy
-    @{ Pkg = "com.fingerprints.sensortesttool"; Desc = "Test cảm biến vân tay nhà máy" },
-    @{ Pkg = "com.goodix.gftest"; Desc = "Test cảm biến Goodix" },
-    @{ Pkg = "com.longcheertel.AutoTest"; Desc = "Auto Test nhà máy" },
-    @{ Pkg = "com.longcheertel.cit"; Desc = "CIT Test nhà máy" },
-    @{ Pkg = "com.longcheertel.sarauth"; Desc = "SAR Auth nhà máy" },
-    @{ Pkg = "com.wdstechnology.android.kryten"; Desc = "Cấu hình OMA-DM nhà mạng" },
-    @{ Pkg = "com.qualcomm.qti.remoteSimlockAuth"; Desc = "Simlock Auth không dùng" },
-    @{ Pkg = "com.qualcomm.qti.ridemodeaudio"; Desc = "Ride Mode Audio Qualcomm" },
-    @{ Pkg = "com.qti.snapdragon.qdcm_ff"; Desc = "QDCM Color Mode test" },
-    @{ Pkg = "com.bsp.logmanager"; Desc = "CatchLog_Lc (Ghi log debug nhà máy)" },
-    @{ Pkg = "com.novatek.novavis"; Desc = "NovaJarvis (Công cụ debug màn hình)" }
+    # 7. Factory Test & Diagnostic Bloat
+    @{ Pkg = "com.fingerprints.sensortesttool"; Desc = "Fingerprint Factory Test" },
+    @{ Pkg = "com.goodix.gftest"; Desc = "Goodix Sensor Factory Test" },
+    @{ Pkg = "com.longcheertel.AutoTest"; Desc = "Factory AutoTest" },
+    @{ Pkg = "com.longcheertel.cit"; Desc = "Factory CIT Test" },
+    @{ Pkg = "com.longcheertel.sarauth"; Desc = "Factory SAR Auth" },
+    @{ Pkg = "com.wdstechnology.android.kryten"; Desc = "OMA-DM Provisioning" },
+    @{ Pkg = "com.qualcomm.qti.remoteSimlockAuth"; Desc = "Remote Simlock Auth" },
+    @{ Pkg = "com.qualcomm.qti.ridemodeaudio"; Desc = "Qualcomm Ride Mode Audio" },
+    @{ Pkg = "com.qti.snapdragon.qdcm_ff"; Desc = "QDCM Color Mode Test" },
+    @{ Pkg = "com.bsp.logmanager"; Desc = "Factory Log Manager" },
+    @{ Pkg = "com.novatek.novavis"; Desc = "Display Debug Tool" }
 )
 
-Write-Host "`n=== BƯỚC 1: TIẾN HÀNH DEBLOAT AN TOÀN (Kiểm tra $($SafeDebloatPackages.Count) gói) ===" -ForegroundColor Cyan
+Write-Host "`n=== STEP 1: SAFE DEBLOAT (Checking $($SafeDebloatPackages.Count) packages) ===" -ForegroundColor Cyan
 $SuccessCount = 0
 $SkippedCount = 0
 
@@ -209,66 +206,65 @@ foreach ($item in $SafeDebloatPackages) {
         continue
     }
 
-    # Bảo vệ tính năng độc quyền trên Google Pixel (Now Playing, Live Translate, Copy text đa nhiệm)
     if ($BrandLower -eq "google" -and ($pkg -eq "com.google.android.as" -or $pkg -eq "com.google.android.as.oss")) {
-        Write-Host "[GIỮ LẠI CHO PIXEL] $pkg - Giữ tính năng Now Playing, Live Caption & Copy chữ đa nhiệm của Pixel" -ForegroundColor DarkCyan
+        Write-Host "[KEPT FOR PIXEL] $pkg - Preserving Pixel Now Playing, Live Caption & Overview Selection" -ForegroundColor DarkCyan
         $SkippedCount++
         continue
     }
 
     $out = (& adb @adbArgs shell "pm uninstall -k --user 0 $pkg" 2>&1) -join " "
     if ($out -match "Success") {
-        Write-Host "[ĐÃ GỠ] $pkg - $desc" -ForegroundColor Green
+        Write-Host "[REMOVED] $pkg - $desc" -ForegroundColor Green
         $SuccessCount++
     } else {
-        Write-Host "[LỖI]   $pkg : $out" -ForegroundColor DarkYellow
+        Write-Host "[ERROR]   $pkg : $out" -ForegroundColor DarkYellow
     }
 }
-Write-Host "==> Kết quả Debloat: Đã gỡ $SuccessCount gói rác | Bỏ qua $SkippedCount gói." -ForegroundColor Cyan
+Write-Host "==> Debloat Summary: Removed $SuccessCount packages | Skipped $SkippedCount packages." -ForegroundColor Cyan
 
-# ---------- 4. Tinh chỉnh hiệu năng, Pin & Độ mượt ----------
-Write-Host "`n=== BƯỚC 2: TỐI ƯU ĐỘ MƯỢT, PIN MODEM & TIẾN TRÌNH NGẦM ===" -ForegroundColor Cyan
+# ---------- 4. Performance, Battery & Smoothness Tuning ----------
+Write-Host "`n=== STEP 2: UI SMOOTHNESS, MODEM BATTERY & RAM OPTIMIZATION ===" -ForegroundColor Cyan
 
-Write-Host "[*] Giảm tỷ lệ Animation xuống 0.5x..." -ForegroundColor White
+Write-Host "[*] Setting Animation Scale to 0.5x..." -ForegroundColor White
 & adb @adbArgs shell "settings put global window_animation_scale 0.5" 2>$null
 & adb @adbArgs shell "settings put global transition_animation_scale 0.5" 2>$null
 & adb @adbArgs shell "settings put global animator_duration_scale 0.5" 2>$null
 $animCheck = ((& adb @adbArgs shell "settings get global window_animation_scale") -join "").Trim()
 if ($animCheck -eq "0.5") {
-    Write-Host "    -> Đã đặt Animation = 0.5x thành công!" -ForegroundColor Green
+    Write-Host "    -> Animation set to 0.5x!" -ForegroundColor Green
 } else {
-    Write-Host "    -> [Lưu ý Xiaomi] Máy chặn quyền WRITE_SECURE_SETTINGS. Hãy chỉnh tay Animation 0.5x trong Developer Options." -ForegroundColor Yellow
+    Write-Host "    -> [Note for Xiaomi] Enable 'USB debugging (Security settings)' or set Animation 0.5x manually in Developer Options." -ForegroundColor Yellow
 }
 
-Write-Host "[*] Tối ưu Modem & Quét ngầm (Đặc trị nóng máy & hao pin chờ trên Google Pixel / Android)..." -ForegroundColor White
+Write-Host "[*] Optimizing Modem & Disabling 24/7 Background Scanning..." -ForegroundColor White
 & adb @adbArgs shell "settings put global mobile_data_always_on 0" 2>$null
 & adb @adbArgs shell "settings put global wifi_scan_always_enabled 0" 2>$null
 & adb @adbArgs shell "settings put global ble_scan_always_enabled 0" 2>$null
-Write-Host "    -> Đã tắt giữ sóng 4G/5G ngầm khi đang dùng Wi-Fi (mobile_data_always_on=0) & tắt quét Wi-Fi/BLE 24/7!" -ForegroundColor Green
+Write-Host "    -> Disabled mobile_data_always_on (0) & wifi/ble_scan_always_enabled (0)!" -ForegroundColor Green
 
 if ($BrandLower -eq "google" -or $MemTotalKB -gt 6500000) {
-    Write-Host "[*] Máy có RAM lớn (>6GB) hoặc là Google Pixel: Mở khóa giới hạn đa nhiệm mặc định..." -ForegroundColor White
+    Write-Host "[*] High RAM (>6GB) or Google Pixel detected: Unlocking default RAM multitasking..." -ForegroundColor White
     & adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
 } else {
-    Write-Host "[*] Máy RAM <= 6GB: Giới hạn số tiến trình lưu đệm ngầm (max_cached_processes = 8) chống tràn RAM..." -ForegroundColor White
+    Write-Host "[*] Low/Mid RAM (<=6GB) detected: Setting max_cached_processes = 8..." -ForegroundColor White
     & adb @adbArgs shell "device_config put activity_manager max_cached_processes 8" 2>$null
 }
 
 if ($BrandLower -eq "samsung") {
-    Write-Host "[*] Tối ưu RAM Plus trên Samsung (hạ xuống 2GB để giảm ghi đọc bộ nhớ UFS/eMMC)..." -ForegroundColor White
+    Write-Host "[*] Optimizing Samsung RAM Plus (setting ram_expand_size = 2048 MB)..." -ForegroundColor White
     & adb @adbArgs shell "settings put global ram_expand_size 2048" 2>$null
 }
 
-Write-Host "[*] Dọn bộ nhớ đệm (trim-caches)..." -ForegroundColor White
+Write-Host "[*] Trimming system caches (pm trim-caches)..." -ForegroundColor White
 & adb @adbArgs shell "pm trim-caches 999999999999999999" 2>$null
 
 if (-not $SkipDexopt) {
-    Write-Host "[*] Đang chạy tối ưu hóa mã ứng dụng AOT (bg-dexopt-job, mất khoảng 30-90 giây)..." -ForegroundColor Yellow
+    Write-Host "[*] Running AOT app compilation (bg-dexopt-job, takes ~30-90s)..." -ForegroundColor Yellow
     & adb @adbArgs shell "cmd package bg-dexopt-job" | Out-Null
-    Write-Host "    -> Hoàn tất biên dịch AOT!" -ForegroundColor Green
+    Write-Host "    -> AOT compilation completed!" -ForegroundColor Green
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green
-Write-Host "   HOÀN TẤT TỐI ƯU! FILE BACKUP LƯU TẠI DESKTOP:          " -ForegroundColor Green
+Write-Host "   OPTIMIZATION COMPLETE! BACKUP SAVED TO DESKTOP:        " -ForegroundColor Green
 Write-Host "   $BackupFile" -ForegroundColor White
 Write-Host "==========================================================" -ForegroundColor Green

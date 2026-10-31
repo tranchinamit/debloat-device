@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-  [BƯỚC 2 - GỠ BLOATWARE THEO LỰA CHỌN]
-  Chạy sau khi đã xem kết quả phân tích từ Bước 1 (step1_scan_pixel.ps1).
-  Hỗ trợ chế độ xem trước (-DryRun), chọn nhóm (-Group), hoặc truyền thêm gói tùy ý (-ExtraPackages).
-  Khóa bảo vệ cứng các gói tính năng độc quyền của Google Pixel (Now Playing, eSIM, AICore, Camera, Launcher).
-  Tự động xuất kết quả ra file Markdown (.md) ngoài Desktop VÀ copy vào Clipboard.
+  [STEP 2 - CUSTOM DEBLOAT FOR GOOGLE PIXEL]
+  Run after reviewing Step 1 scan results.
+  Supports preview mode (-DryRun), group filtering (-Group), and extra packages (-ExtraPackages).
+  Strictly protects core Google Pixel features (Now Playing, eSIM, AICore, Camera, Launcher).
+  Exports .md report to Desktop AND copies to Clipboard.
 
 .USAGE
-  1. Xem trước những gói sẽ được gỡ trên máy (chưa gỡ thật):
+  1. Preview packages that will be removed (no changes made):
      powershell -ExecutionPolicy Bypass -File .\step2_debloat_custom.ps1 -DryRun
 
-  2. Gỡ toàn bộ các nhóm rác an toàn (Nhà mạng Mỹ + Telemetry Quảng cáo + App rác cài sẵn):
+  2. Remove all safe bloatware groups (Carrier + Telemetry + BloatApps):
      powershell -ExecutionPolicy Bypass -File .\step2_debloat_custom.ps1
 
-  3. Gỡ kèm thêm các gói cụ thể do bạn chỉ định sau Bước 1:
+  3. Remove additional specific packages chosen after Step 1:
      powershell -ExecutionPolicy Bypass -File .\step2_debloat_custom.ps1 -ExtraPackages "com.example.app1,com.example.app2"
 #>
 
@@ -26,13 +26,12 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     if (Test-Path "C:\adb_work\platform-tools\adb.exe") {
         $env:Path = "C:\adb_work\platform-tools;" + $env:Path
     } else {
-        Write-Host "[!] Chưa có ADB. Hãy chạy step1_scan_pixel.ps1 trước!" -ForegroundColor Red
+        Write-Host "[!] ADB not found. Run step1_scan_pixel.ps1 first!" -ForegroundColor Red
         exit 1
     }
 }
@@ -45,67 +44,67 @@ $SafeModel  = if ($Model) { $Model -replace '\s+', '_' } else { "Device" }
 $DesktopDir = [Environment]::GetFolderPath("Desktop")
 $ReportFile = Join-Path $DesktopDir "Pixel_${SafeModel}_Step2_Debloat.md"
 
-# Danh sách gói BẢO VỆ TUYỆT ĐỐI trên Google Pixel (Không bao giờ cho phép gỡ nhầm)
+# Strictly protected Google Pixel core packages (never allow accidental removal)
 $ProtectedPixelPackages = [System.Collections.Generic.HashSet[string]]::new([string[]]@(
-    "com.google.android.as",                     # Android System Intelligence (Now Playing, Live Caption, Copy chữ đa nhiệm)
+    "com.google.android.as",                     # Android System Intelligence (Now Playing, Live Caption, Overview Selection)
     "com.google.android.as.oss",                 # Private Compute Services
     "com.google.android.aicore",                 # Google AICore (Pixel AI)
-    "com.google.android.euicc",                  # Quản lý eSIM trên Pixel
+    "com.google.android.euicc",                  # eSIM Manager on Pixel
     "com.google.android.ims",                    # Carrier Services (VoLTE / Wi-Fi Calling)
-    "com.google.android.apps.nexuslauncher",     # Pixel Launcher gốc
-    "com.google.android.GoogleCamera",           # Pixel Camera gốc
+    "com.google.android.apps.nexuslauncher",     # Pixel Launcher
+    "com.google.android.GoogleCamera",           # Pixel Camera
     "com.google.android.gms",                    # Google Play Services
     "com.android.vending",                       # Google Play Store
-    "com.google.android.dialer",                 # Điện thoại gốc
-    "com.google.android.apps.messaging",         # Tin nhắn gốc của Pixel
-    "com.google.android.contacts",               # Danh bạ gốc
-    "com.google.android.apps.photos"             # Google Photos (Thư viện ảnh gốc của Pixel)
+    "com.google.android.dialer",                 # Google Phone Dialer
+    "com.google.android.apps.messaging",         # Google Messages
+    "com.google.android.contacts",               # Google Contacts
+    "com.google.android.apps.photos"             # Google Photos
 ))
 
-# Nhóm 1: Rác nhà mạng Mỹ/Nhật ẩn sẵn trong ROM Google Pixel
+# Group 1: Hidden US/JP Carrier Bloatware in Pixel ROMs
 $CarrierPackages = @(
-    @{ Pkg = "com.verizon.mips.services";       Desc = "My Verizon Services (Rác nhà mạng Verizon ngầm)" },
-    @{ Pkg = "com.verizon.llkagent";            Desc = "Verizon LLK Agent (Rác nhà mạng Verizon)" },
+    @{ Pkg = "com.verizon.mips.services";       Desc = "My Verizon Services (Hidden US Carrier bloat)" },
+    @{ Pkg = "com.verizon.llkagent";            Desc = "Verizon LLK Agent" },
     @{ Pkg = "com.vzw.apnlib";                  Desc = "Verizon APN Library" },
     @{ Pkg = "com.customermobile.preload.vzw";  Desc = "Verizon Preload Agent" },
-    @{ Pkg = "com.att.iqi";                     Desc = "AT&T Carrier IQ Telemetry (Theo dõi ngầm nhà mạng AT&T)" },
-    @{ Pkg = "com.tmobile.pr.adapt";            Desc = "T-Mobile Adapt (Dịch vụ nhà mạng T-Mobile ngầm)" },
-    @{ Pkg = "com.sprint.ms.smf.services";      Desc = "Sprint Services (Dịch vụ nhà mạng Sprint ngầm)" },
+    @{ Pkg = "com.att.iqi";                     Desc = "AT&T Carrier IQ Telemetry" },
+    @{ Pkg = "com.tmobile.pr.adapt";            Desc = "T-Mobile Adapt Service" },
+    @{ Pkg = "com.sprint.ms.smf.services";      Desc = "Sprint Carrier Services" },
     @{ Pkg = "com.sprint.ce.updater";           Desc = "Sprint Carrier Updater" },
-    @{ Pkg = "com.google.omadm.trigger";        Desc = "OMA-DM Carrier Trigger (Cấu hình nhà mạng Mỹ)" },
+    @{ Pkg = "com.google.omadm.trigger";        Desc = "US Carrier OMA-DM Trigger" },
     @{ Pkg = "com.android.omadm.service";       Desc = "OMA-DM Carrier Service" },
-    @{ Pkg = "com.nttdocomo.android.docomoset"; Desc = "Docomo Carrier Settings (Nhà mạng Nhật)" },
-    @{ Pkg = "jp.softbank.mb.ichinaviclt";      Desc = "SoftBank Navigation (Nhà mạng Nhật)" }
+    @{ Pkg = "com.nttdocomo.android.docomoset"; Desc = "Docomo Carrier Settings" },
+    @{ Pkg = "jp.softbank.mb.ichinaviclt";      Desc = "SoftBank Carrier Navigation" }
 )
 
-# Nhóm 2: Dịch vụ Quảng cáo, Chẩn đoán & Telemetry chạy ngầm của Google
+# Group 2: Google Advertising, Diagnostics & Telemetry Services
 $TelemetryPackages = @(
-    @{ Pkg = "com.google.mainline.telemetry";                       Desc = "Google Mainline Telemetry (Thu thập dữ liệu ngầm)" },
-    @{ Pkg = "com.google.mainline.adservices";                      Desc = "Google Mainline AdServices (Dịch vụ quảng cáo)" },
-    @{ Pkg = "com.google.android.adservices.api";                   Desc = "Google AdServices API (Theo dõi quảng cáo)" },
-    @{ Pkg = "com.google.android.ondevicepersonalization.services"; Desc = "Cá nhân hóa quảng cáo trên thiết bị" },
-    @{ Pkg = "com.google.android.federatedcompute";                 Desc = "Huấn luyện dữ liệu quảng cáo ngầm" },
-    @{ Pkg = "com.google.android.feedback";                         Desc = "Google Feedback (Gửi báo cáo lỗi ngầm)" },
-    @{ Pkg = "com.android.traceur";                                 Desc = "System Tracing (Ghi log nhà phát triển)" },
-    @{ Pkg = "com.google.android.apps.helprtc";                     Desc = "Pixel Support Video Share chạy ngầm" },
+    @{ Pkg = "com.google.mainline.telemetry";                       Desc = "Google Mainline Telemetry" },
+    @{ Pkg = "com.google.mainline.adservices";                      Desc = "Google Mainline AdServices" },
+    @{ Pkg = "com.google.android.adservices.api";                   Desc = "Google AdServices API" },
+    @{ Pkg = "com.google.android.ondevicepersonalization.services"; Desc = "On-Device Ad Personalization" },
+    @{ Pkg = "com.google.android.federatedcompute";                 Desc = "Federated Compute Ad Training" },
+    @{ Pkg = "com.google.android.feedback";                         Desc = "Google Feedback" },
+    @{ Pkg = "com.android.traceur";                                 Desc = "System Tracing Dev Logger" },
+    @{ Pkg = "com.google.android.apps.helprtc";                     Desc = "Pixel Support Video Share" },
     @{ Pkg = "com.google.android.apps.diagnosticstool";             Desc = "Pixel Diagnostics Tool" }
 )
 
-# Nhóm 3: App cài sẵn ít dùng / Tốn RAM nền
+# Group 3: Pre-installed Promo / Bloat Apps
 $BloatAppsPackages = @(
-    @{ Pkg = "com.google.android.apps.tips";                  Desc = "Pixel Tips (Mẹo sử dụng Pixel chạy ngầm)" },
-    @{ Pkg = "com.android.retaildemo";                        Desc = "Retail Demo Mode (Chế độ trưng bày cửa hàng)" },
+    @{ Pkg = "com.google.android.apps.tips";                  Desc = "Pixel Tips" },
+    @{ Pkg = "com.android.retaildemo";                        Desc = "Retail Demo Mode" },
     @{ Pkg = "com.google.android.retaildemo";                 Desc = "Google Retail Demo" },
     @{ Pkg = "com.google.android.apps.subscriptions.red";     Desc = "Google One Promo" },
     @{ Pkg = "com.google.android.videos";                     Desc = "Google TV / Play Movies" },
     @{ Pkg = "com.google.android.apps.tachyon";               Desc = "Google Meet / Duo" },
-    @{ Pkg = "com.google.android.apps.restore";               Desc = "Google Setup Restore (Chỉ dùng lúc mới đập hộp)" },
-    @{ Pkg = "com.android.providers.partnerbookmarks";        Desc = "Bookmarks đối tác quảng cáo" },
+    @{ Pkg = "com.google.android.apps.restore";               Desc = "Google Setup Restore" },
+    @{ Pkg = "com.android.providers.partnerbookmarks";        Desc = "Partner Bookmarks" },
     @{ Pkg = "com.android.egg";                               Desc = "Android Easter Egg" },
-    @{ Pkg = "com.android.hotwordenrollment.okgoogle";        Desc = "Lắng nghe mic OK Google 24/7 (Ngốn RAM & pin chờ)" },
-    @{ Pkg = "com.android.hotwordenrollment.xgoogle";         Desc = "Lắng nghe mic Hey Google 24/7" },
-    @{ Pkg = "com.google.android.apps.wellbeing";             Desc = "Digital Wellbeing (Theo dõi thời gian dùng máy ngầm)" },
-    @{ Pkg = "com.google.android.marvin.talkback";            Desc = "TalkBack (Đọc màn hình cho người khiếm thị)" },
+    @{ Pkg = "com.android.hotwordenrollment.okgoogle";        Desc = "Always-on OK Google Hotword (~103MB RAM)" },
+    @{ Pkg = "com.android.hotwordenrollment.xgoogle";         Desc = "Always-on Hey Google Hotword" },
+    @{ Pkg = "com.google.android.apps.wellbeing";             Desc = "Digital Wellbeing background tracker" },
+    @{ Pkg = "com.google.android.marvin.talkback";            Desc = "TalkBack Accessibility" },
     @{ Pkg = "com.google.android.accessibility.switchaccess"; Desc = "Switch Access" }
 )
 
@@ -117,7 +116,7 @@ if ($Group -eq "All" -or $Group -eq "BloatApps") { $TargetList += $BloatAppsPack
 if ($ExtraPackages) {
     $extras = $ExtraPackages -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     foreach ($ep in $extras) {
-        $TargetList += @{ Pkg = $ep; Desc = "Gói tùy chọn bổ sung theo yêu cầu" }
+        $TargetList += @{ Pkg = $ep; Desc = "User requested extra package" }
     }
 }
 
@@ -125,9 +124,9 @@ $InstalledRaw = (& adb @adbArgs shell pm list packages -e) | ForEach-Object { $_
 $InstalledSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$InstalledRaw)
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   BƯỚC 2: GỠ BLOATWARE GOOGLE PIXEL (Nhóm: $Group)       " -ForegroundColor Cyan
+Write-Host "   STEP 2: GOOGLE PIXEL DEBLOAT (Group: $Group)           " -ForegroundColor Cyan
 if ($DryRun) {
-    Write-Host "   [CHẾ ĐỘ DRY-RUN: CHỈ HIỂN THỊ, CHƯA GỠ THẬT]          " -ForegroundColor Yellow
+    Write-Host "   [DRY-RUN MODE: PREVIEW ONLY, NO CHANGES MADE]          " -ForegroundColor Yellow
 }
 Write-Host "==========================================================" -ForegroundColor Cyan
 
@@ -140,8 +139,8 @@ foreach ($item in $TargetList) {
     $desc = $item.Desc
 
     if ($ProtectedPixelPackages.Contains($pkg)) {
-        Write-Host "[BẢO VỆ PIXEL] $pkg - Đã khóa bảo vệ tính năng gốc của Pixel!" -ForegroundColor Magenta
-        $ActionLogs += "| ``$pkg`` | **BẢO VỆ (GIỮ LẠI)** | $desc |"
+        Write-Host "[PROTECTED] $pkg - Core Pixel feature kept safe!" -ForegroundColor Magenta
+        $ActionLogs += "| ``$pkg`` | **PROTECTED (KEPT)** | $desc |"
         continue
     }
 
@@ -151,43 +150,46 @@ foreach ($item in $TargetList) {
     }
 
     if ($DryRun) {
-        Write-Host "[SẼ GỠ] $pkg - $desc" -ForegroundColor Yellow
-        $ActionLogs += "| ``$pkg`` | **SẼ GỠ (Dry-Run)** | $desc |"
+        Write-Host "[WILL REMOVE] $pkg - $desc" -ForegroundColor Yellow
+        $ActionLogs += "| ``$pkg`` | **WILL REMOVE (Dry-Run)** | $desc |"
         $RemovedCount++
     } else {
         $out = (& adb @adbArgs shell "pm uninstall -k --user 0 $pkg" 2>&1) -join " "
         if ($out -match "Success") {
-            Write-Host "[ĐÃ GỠ] $pkg - $desc" -ForegroundColor Green
-            $ActionLogs += "| ``$pkg`` | **ĐÃ GỠ (Success)** | $desc |"
+            Write-Host "[REMOVED] $pkg - $desc" -ForegroundColor Green
+            $ActionLogs += "| ``$pkg`` | **REMOVED (Success)** | $desc |"
             $RemovedCount++
         } else {
-            Write-Host "[LỖI]   $pkg : $out" -ForegroundColor Red
-            $ActionLogs += "| ``$pkg`` | **LỖI ($out)** | $desc |"
+            Write-Host "[ERROR]   $pkg : $out" -ForegroundColor Red
+            $ActionLogs += "| ``$pkg`` | **ERROR ($out)** | $desc |"
         }
     }
 }
 
-$ModeLabel = if ($DryRun) { "Dry-Run (Xem trước)" } else { "Thực thi Gỡ bỏ" }
+$ModeLabel  = if ($DryRun) { "Dry-Run (Preview)" } else { "Executed Uninstall" }
+$ExtraLabel = if ($ExtraPackages) { "``$ExtraPackages``" } else { "None" }
+$TableBody  = if ($ActionLogs.Count -gt 0) { $ActionLogs -join "`r`n" } else { "| *(No matching packages found on device)* | - | - |" }
+
 $MdReport = @(
-    "# Báo cáo Gỡ Bloatware Google Pixel (Step 2 - Debloat)"
+    "# Google Pixel Debloat Report (Step 2 - Debloat)"
     ""
-    "- **Thời gian:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-    "- **Thiết bị:** $Model"
-    "- **Chế độ:** $ModeLabel (Nhóm: ``$Group``)"
-    "- **Gói bổ sung (ExtraPackages):** $(if ($ExtraPackages) { "``$ExtraPackages``" } else { 'Không có' })"
-    "- **Tổng kết:** Đã xử lý **$RemovedCount gói** trên máy | Bỏ qua **$SkippedCount gói** không tồn tại."
+    "- **Time:** $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    "- **Device:** $Model"
+    "- **Mode:** $ModeLabel (Group: ``$Group``)"
+    "- **Extra Packages:** $ExtraLabel"
+    "- **Summary:** Processed **$RemovedCount packages** | Skipped **$SkippedCount not installed**."
     ""
-    "## Chi tiết Các gói Đã xử lý"
-    "| Package ID | Trạng thái | Mô tả |"
+    "## Package Action Details"
+    "| Package ID | Status | Description |"
     "| :--- | :--- | :--- |"
-    $(if ($ActionLogs.Count -gt 0) { $ActionLogs -join "`r`n" } else { "| *(Không có gói nào trùng khớp trên máy)* | - | - |" })
+    $TableBody
 ) -join "`r`n"
 
 $MdReport | Set-Content -Path $ReportFile -Encoding UTF8
 try {
     $MdReport | Set-Clipboard
-    Write-Host "`n[OK] ĐÃ COPY KẾT QUẢ BƯỚC 2 VÀO CLIPBOARD & XUẤT FILE .MD RA DESKTOP!" -ForegroundColor Green
+    Write-Host "`n[OK] COPIED STEP 2 REPORT TO CLIPBOARD & EXPORTED .MD TO DESKTOP!" -ForegroundColor Green
 } catch {
-    Write-Host "`n[OK] ĐÃ XUẤT FILE .MD BƯỚC 2 RA DESKTOP!" -ForegroundColor Green
+    Write-Host "`n[OK] EXPORTED STEP 2 .MD REPORT TO DESKTOP!" -ForegroundColor Green
 }
-Write-Host "File Markdown: $ReportFile" -ForegroundColor Yellow
+Write-Host "Markdown Report: $ReportFile" -ForegroundColor Yellow

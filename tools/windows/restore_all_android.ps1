@@ -16,13 +16,12 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     if (Test-Path "C:\adb_work\platform-tools\adb.exe") {
         $env:Path = "C:\adb_work\platform-tools;" + $env:Path
     } else {
-        Write-Host "[!] Không tìm thấy adb.exe. Hãy chạy debloat_safe_android.ps1 trước hoặc cài platform-tools." -ForegroundColor Red
+        Write-Host "[!] adb.exe not found. Run debloat_safe_android.ps1 first or install platform-tools." -ForegroundColor Red
         exit 1
     }
 }
@@ -31,7 +30,7 @@ $adbArgs = @()
 if ($Device) { $adbArgs = @("-s", $Device) }
 
 if ($Package) {
-    Write-Host "[*] Đang khôi phục gói: $Package ..." -ForegroundColor Cyan
+    Write-Host "[*] Restoring package: $Package ..." -ForegroundColor Cyan
     $out = (& adb @adbArgs shell "cmd package install-existing $Package" 2>&1) -join " "
     Write-Host "    -> $out" -ForegroundColor Green
     exit 0
@@ -45,13 +44,12 @@ function Get-UninstalledPackages {
 }
 
 $uninstalled = @(Get-UninstalledPackages)
-Write-Host "Tổng số gói đã gỡ tìm thấy: $($uninstalled.Count)" -ForegroundColor Cyan
+Write-Host "Total uninstalled packages found: $($uninstalled.Count)" -ForegroundColor Cyan
 if ($uninstalled.Count -eq 0) {
-    Write-Host "[+] Không có gói nào bị gỡ. Tất cả đã ở trạng thái nguyên bản!" -ForegroundColor Green
+    Write-Host "[+] No uninstalled packages found. Device is at factory package state!" -ForegroundColor Green
     exit 0
 }
 
-# Ưu tiên khôi phục các gói quan trọng trước (overlay, qualcomm, qti, xiaomi, samsung, google)
 $priorityKeywords = @("overlay", "qualcomm", "qti", "xiaomi", "miui", "samsung", "google")
 $sortedPkgs = $uninstalled | Sort-Object {
     $pkg = $_
@@ -64,7 +62,7 @@ $sortedPkgs = $uninstalled | Sort-Object {
 $idx = 0
 foreach ($pkg in $sortedPkgs) {
     $idx++
-    Write-Host "[$idx/$($sortedPkgs.Count)] Đang khôi phục $pkg... " -NoNewline
+    Write-Host "[$idx/$($sortedPkgs.Count)] Restoring $pkg... " -NoNewline
     $out = (& adb @adbArgs shell "cmd package install-existing $pkg" 2>&1) -join " "
     if ($out -match "installed for user") {
         Write-Host "OK" -ForegroundColor Green
@@ -73,7 +71,7 @@ foreach ($pkg in $sortedPkgs) {
     }
 }
 
-Write-Host "`n[*] Đang đưa cài đặt Animation, Modem và Background Process Limit về mặc định..." -ForegroundColor Cyan
+Write-Host "`n[*] Resetting Animation, Modem and Background Process Limit to defaults..." -ForegroundColor Cyan
 & adb @adbArgs shell "settings put global window_animation_scale 1.0" 2>$null
 & adb @adbArgs shell "settings put global transition_animation_scale 1.0" 2>$null
 & adb @adbArgs shell "settings put global animator_duration_scale 1.0" 2>$null
@@ -83,4 +81,4 @@ Write-Host "`n[*] Đang đưa cài đặt Animation, Modem và Background Proces
 & adb @adbArgs shell "device_config delete activity_manager max_cached_processes" 2>$null
 
 $remaining = @(Get-UninstalledPackages)
-Write-Host "`n==> Hoàn tất! Số gói chưa khôi phục còn lại: $($remaining.Count)" -ForegroundColor Green
+Write-Host "`n==> Restore complete! Remaining uninstalled packages: $($remaining.Count)" -ForegroundColor Green
